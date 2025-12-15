@@ -4,23 +4,12 @@
 
 from pathlib import Path
 from typing import NamedTuple
-from unittest.mock import MagicMock
 
 import inject
 import pytest
 
-from mpvqc.services import ExportService, PlayerService, ResetService, SettingsService, StateService
-from mpvqc.viewmodels import MpvqcHeaderViewModel
-
-
-@pytest.fixture
-def reset_service_mock() -> MagicMock:
-    return MagicMock(spec_set=ResetService)
-
-
-@pytest.fixture
-def export_service_mock() -> MagicMock:
-    return MagicMock(spec_set=ExportService)
+from mpvqc.services import PlayerService, SettingsService, StateService
+from mpvqc.viewmodels import MpvqcHeaderViewModel, MpvqcMenuBarViewModel
 
 
 @pytest.fixture
@@ -30,20 +19,23 @@ def view_model() -> MpvqcHeaderViewModel:
 
 
 @pytest.fixture(autouse=True)
-def configure_inject(reset_service_mock, state_service, player_service_mock, settings_service, export_service_mock):
-    def config(binder: inject.Binder):
+def configure_inject(
+    common_bindings_with,
+    state_service,
+    player_service_mock,
+    settings_service,
+):
+    def custom_bindings(binder: inject.Binder):
         binder.bind(StateService, state_service)
-        binder.bind(ResetService, reset_service_mock)
         binder.bind(PlayerService, player_service_mock)
         binder.bind(SettingsService, settings_service)
-        binder.bind(ExportService, export_service_mock)
 
-    inject.configure(config, clear=True)
+    common_bindings_with(custom_bindings)
 
 
 class WindowTitleTestCase(NamedTuple):
     saved: bool
-    window_title_format: MpvqcHeaderViewModel.WindowTitleFormat
+    window_title_format: MpvqcMenuBarViewModel.WindowTitleFormat
     video_loaded: bool
     filename: str | None
     path: str | None
@@ -55,7 +47,7 @@ class WindowTitleTestCase(NamedTuple):
     [
         WindowTitleTestCase(
             saved=True,
-            window_title_format=MpvqcHeaderViewModel.WindowTitleFormat.DEFAULT,
+            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.DEFAULT,
             video_loaded=False,
             filename=None,
             path=None,
@@ -63,7 +55,7 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=False,
-            window_title_format=MpvqcHeaderViewModel.WindowTitleFormat.DEFAULT,
+            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.DEFAULT,
             video_loaded=False,
             filename=None,
             path=None,
@@ -71,7 +63,7 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=True,
-            window_title_format=MpvqcHeaderViewModel.WindowTitleFormat.FILE_NAME,
+            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_NAME,
             video_loaded=True,
             filename="test_video.mp4",
             path=None,
@@ -79,7 +71,7 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=False,
-            window_title_format=MpvqcHeaderViewModel.WindowTitleFormat.FILE_NAME,
+            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_NAME,
             video_loaded=True,
             filename="test_video.mp4",
             path=None,
@@ -87,7 +79,7 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=True,
-            window_title_format=MpvqcHeaderViewModel.WindowTitleFormat.FILE_PATH,
+            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_PATH,
             video_loaded=True,
             filename=None,
             path=str(Path.home() / "test_video.mp4"),
@@ -95,7 +87,7 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=False,
-            window_title_format=MpvqcHeaderViewModel.WindowTitleFormat.FILE_PATH,
+            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_PATH,
             video_loaded=True,
             filename=None,
             path=str(Path.home() / "test_video.mp4"),
@@ -103,7 +95,7 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=True,
-            window_title_format=MpvqcHeaderViewModel.WindowTitleFormat.FILE_NAME,
+            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_NAME,
             video_loaded=False,
             filename=None,
             path=None,
@@ -112,6 +104,7 @@ class WindowTitleTestCase(NamedTuple):
     ],
 )
 def test_window_title(
+    qt_app,
     view_model,
     configure_state,
     player_service_mock,
@@ -148,44 +141,3 @@ def test_window_title_changed(
 
     settings_service.language = "es-MX"
     assert spy.count() == 1
-
-
-def test_request_reset_app_state(view_model, configure_state, reset_service_mock, make_spy):
-    spy = make_spy(view_model.confirmResetRequested)
-
-    configure_state(saved=True)
-    view_model.requestResetAppState()
-    reset_service_mock.reset.assert_called_once()
-    assert spy.count() == 0
-
-    reset_service_mock.reset.reset_mock()
-    configure_state(saved=False)
-    view_model.requestResetAppState()
-    assert spy.count() == 1
-    reset_service_mock.reset.assert_not_called()
-
-
-def test_save(view_model, make_spy, configure_state, export_service_mock):
-    spy = make_spy(view_model.exportPathRequested)
-
-    configure_state(document=None)
-    view_model.requestSaveQcDocumentAs()
-    assert spy.count() == 1
-    export_service_mock.save.assert_not_called()
-
-    configure_state(document=None)
-    view_model.requestSaveQcDocument()
-    assert spy.count() == 2
-    export_service_mock.save.assert_not_called()
-
-    path = Path() / "test_document.txt"
-    configure_state(document=path)
-    view_model.requestSaveQcDocument()
-    assert spy.count() == 2
-    assert export_service_mock.save.call_count == 1
-    export_service_mock.save.assert_called_with(path)
-
-    configure_state(document=path)
-    view_model.requestSaveQcDocumentAs()
-    assert export_service_mock.save.call_count == 1
-    assert spy.count() == 3

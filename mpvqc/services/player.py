@@ -2,20 +2,30 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
+
+import logging
 import os
-from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import inject
-from loguru import logger
-from mpv import MPV
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import Property, QObject, Qt, Signal, SignalInstance, Slot
 
 from .application_paths import ApplicationPathsService
 from .host_integration import HostIntegrationService
 from .key_command import KeyCommandGeneratorService
 from .type_mapper import TypeMapperService
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
+    from typing import Any
+
+    from mpv import MPV
+
+
+logger = logging.getLogger(__name__)
 
 
 class PlayerService(QObject):
@@ -31,10 +41,13 @@ class PlayerService(QObject):
     percent_pos_changed = Signal(int)
     time_pos_changed = Signal(int)
     time_remaining_changed = Signal(int)
+
     height_changed = Signal(int)
     width_changed = Signal(int)
-
     video_dimensions_changed = Signal(int, int)
+
+    audio_track_count_changed = Signal(int)
+    subtitle_track_count_changed = Signal(int)
 
     def __init__(self, **properties):
         super().__init__(**properties)
@@ -48,7 +61,7 @@ class PlayerService(QObject):
         # This is set to True for the time we start loading a video until mpv internally updates it's 'path' property
         self._loading_video = False
 
-        self._init_args = {
+        self._init_args: dict[str, Any] = {
             "keep_open": "yes",
             "idle": "yes",
             "osc": "yes",
@@ -62,29 +75,33 @@ class PlayerService(QObject):
         }
 
         if os.getenv("MPVQC_DEBUG") or os.getenv("MPVQC_PLAYER_LOG"):
+            mpv_log_level = 25
 
             def player_logger(*args):
                 level, context, message = args
-                logger.log("MPV", message.strip(), mpv_level=level, mpv_context=context)
+                logger.log(mpv_log_level, message.strip(), extra={"mpv_level": level, "mpv_context": context})
 
             self._init_args["log_handler"] = player_logger
 
         self._mpv: MPV | None = None
 
-        self._dimensions_coordinator = DualSignalCoordinator(
-            signal_a=self.width_changed,
-            signal_b=self.height_changed,
+        self._dimensions_coordinator = DimensionsChangedCoordinator(
+            width_changed=self.width_changed,
+            height_changed=self.height_changed,
             reset_signal=self.path_changed,
         )
-        self._dimensions_coordinator.both_ready.connect(self.video_dimensions_changed.emit)
+        self._dimensions_coordinator.both_ready.connect(self.video_dimensions_changed)
+
+        self._cached_audio_track_count = 0
+        self._cached_subtitle_track_count = 0
 
     def init(self, win_id: int | None = None):
-        if win_id is None:  # noqa: SIM108
-            args = {"vo": "libmpv"}
-        else:
-            args = {"wid": win_id}
+        args = {"vo": "libmpv"} if win_id is None else {"wid": win_id}
+        merged_args = self._init_args | args
 
-        self._mpv = MPV(**dict(self._init_args, **args))
+        from mpv import MPV
+
+        self._mpv = MPV(**merged_args)
 
         self._mpv.observe_property("duration", self._on_duration_changed)
         self._mpv.observe_property("path", self._on_player_path_changed)
@@ -94,59 +111,64 @@ class PlayerService(QObject):
         self._mpv.observe_property("time-remaining", self._on_player_time_remaining_changed)
         self._mpv.observe_property("height", self._on_player_height_changed)
         self._mpv.observe_property("width", self._on_player_width_changed)
+        self._mpv.observe_property("track-list", self._on_track_list_changed)
 
     @property
-    def mpv(self) -> MPV:
+    def mpv(self) -> MPV | None:
         return self._mpv
+
+    def _get_mpv_attr(self, attr: str) -> Any | None:
+        if self._mpv is None:
+            return None
+        return getattr(self._mpv, attr, None)
 
     @property
     def mpv_version(self) -> str:
-        return self._mpv.mpv_version if self._mpv else ""
+        return self._get_mpv_attr("mpv_version") or ""
 
     @property
     def ffmpeg_version(self) -> str:
-        return self._mpv.ffmpeg_version if self._mpv else ""
+        return self._get_mpv_attr("ffmpeg_version") or ""
 
     @property
     def path(self) -> str | None:
-        return self._mpv.path if self._mpv else None
+        return self._get_mpv_attr("path")
 
     @property
     def filename(self) -> str | None:
-        return self._mpv.filename if self._mpv else None
+        return self._get_mpv_attr("filename")
 
     @property
     def percent_pos(self) -> int | None:
-        if not self._mpv or self._mpv.percent_pos is None:
+        percent: float | None = self._get_mpv_attr("percent_pos")
+        if percent is None:
             return None
-        return int(self._mpv.percent_pos + 0.5)
+        return int(percent + 0.5)
 
     @property
     def time_pos(self) -> int | None:
-        if not self._mpv or self._mpv.time_pos is None:
+        time: float | None = self._get_mpv_attr("time_pos")
+        if time is None:
             return None
-        return int(self._mpv.time_pos)
+        return int(time)
 
     @property
     def time_remaining(self) -> int | None:
-        if not self._mpv or self._mpv.time_remaining is None:
+        time: float | None = self._get_mpv_attr("time_remaining")
+        if time is None:
             return None
-        return int(self._mpv.time_remaining)
+        return int(time)
 
     @property
     def height(self) -> int | None:
-        return self._mpv.height if self._mpv else None
+        return self._get_mpv_attr("height")
 
     @property
     def width(self) -> int | None:
-        return self._mpv.width if self._mpv else None
+        return self._get_mpv_attr("width")
 
     @property
     def video_loaded(self) -> bool:
-        return self.path is not None
-
-    @property
-    def has_video(self) -> bool:
         return self.path is not None
 
     @property
@@ -156,11 +178,25 @@ class PlayerService(QObject):
 
     @property
     def duration(self) -> float:
-        return self._mpv.duration if self._mpv and self._mpv.duration else 0.0
+        return self._get_mpv_attr("duration") or 0.0
 
     @property
-    def _track_list(self) -> list["TrackListEntry"]:
-        return [TrackListEntry.from_dict(e) for e in self._mpv.track_list] if self._mpv else []
+    def is_paused(self) -> bool:
+        return not self.is_playing
+
+    @property
+    def is_playing(self) -> bool:
+        if mpv := self._mpv:
+            return not mpv.pause and not mpv.idle_active
+        return False
+
+    @property
+    def _track_list(self) -> list[TrackListEntry]:
+        if self._mpv is None:
+            return []
+        # noinspection PyTypeChecker
+        track_list: list[dict[str, Any]] = self._get_mpv_attr("track_list")
+        return [TrackListEntry.from_dict(e) for e in track_list]
 
     @property
     def external_subtitles(self) -> list[Path]:
@@ -171,11 +207,19 @@ class PlayerService(QObject):
         }
         return sorted(external)
 
-    def _on_duration_changed(self, _, value: float) -> None:
-        if value:
+    @Property(int, notify=audio_track_count_changed)
+    def audio_track_count(self) -> int:
+        return self._cached_audio_track_count
+
+    @Property(int, notify=subtitle_track_count_changed)
+    def subtitle_track_count(self) -> int:
+        return self._cached_subtitle_track_count
+
+    def _on_duration_changed(self, _, value: float | None) -> None:
+        if value is not None:
             self.duration_changed.emit(value)
 
-    def _on_player_path_changed(self, _, value: str) -> None:
+    def _on_player_path_changed(self, _, value: str | None) -> None:
         self.path_changed.emit(value or "")
         self.video_loaded_changed.emit(value is not None)
 
@@ -188,28 +232,42 @@ class PlayerService(QObject):
             self.open_subtitles(self._cached_subtitles)
             self._cached_subtitles.clear()
 
-    def _on_player_filename_changed(self, _, value: str) -> None:
+    def _on_player_filename_changed(self, _, value: str | None) -> None:
         self.filename_changed.emit(value or "")
 
-    def _on_player_percent_pos_changed(self, _, value: float) -> None:
+    def _on_player_percent_pos_changed(self, _, value: float | None) -> None:
         if value is not None:
             self.percent_pos_changed.emit(int(value))
 
-    def _on_player_time_pos_changed(self, _, value: float) -> None:
+    def _on_player_time_pos_changed(self, _, value: float | None) -> None:
         if value is not None:
             self.time_pos_changed.emit(int(value))
 
-    def _on_player_time_remaining_changed(self, _, value: float) -> None:
+    def _on_player_time_remaining_changed(self, _, value: float | None) -> None:
         if value is not None:
             self.time_remaining_changed.emit(int(value))
 
-    def _on_player_height_changed(self, _, value: int) -> None:
+    def _on_player_height_changed(self, _, value: int | None) -> None:
         if value is not None:
             self.height_changed.emit(value)
 
-    def _on_player_width_changed(self, _, value: int) -> None:
+    def _on_player_width_changed(self, _, value: int | None) -> None:
         if value is not None:
             self.width_changed.emit(value)
+
+    def _on_track_list_changed(self, _, value: Any | None) -> None:
+        if value is None:
+            return
+
+        audio_count = sum(1 for entry in self._track_list if entry.type == "audio")
+        if audio_count != self._cached_audio_track_count:
+            self._cached_audio_track_count = audio_count
+            self.audio_track_count_changed.emit(audio_count)
+
+        subtitle_count = sum(1 for entry in self._track_list if entry.type == "sub")
+        if subtitle_count != self._cached_subtitle_track_count:
+            self._cached_subtitle_track_count = subtitle_count
+            self.subtitle_track_count_changed.emit(subtitle_count)
 
     def move_mouse(self, x: int, y: int) -> None:
         zoom_factor = self._host_integration.display_zoom_factor
@@ -239,7 +297,7 @@ class PlayerService(QObject):
         def _cache():
             self._cached_subtitles |= set(subtitles)
 
-        if self.has_video and not self._loading_video:
+        if self.video_loaded and not self._loading_video:
             _load()
         else:
             _cache()
@@ -266,50 +324,69 @@ class PlayerService(QObject):
     def release_mouse_left(self) -> None:
         self._mpv.command_async("keyup", "MOUSE_BTN0")
 
+    def press_mouse_back(self) -> None:
+        self._mpv.command_async("keypress", "MOUSE_BTN5")
+
+    def press_mouse_forward(self) -> None:
+        self._mpv.command_async("keypress", "MOUSE_BTN6")
+
     def scroll_up(self) -> None:
         self._mpv.command_async("keypress", "MOUSE_BTN3")
 
     def scroll_down(self) -> None:
         self._mpv.command_async("keypress", "MOUSE_BTN4")
 
+    def frame_step_forward(self) -> None:
+        self._mpv.command_async("frame-step")
+
+    def frame_step_backward(self) -> None:
+        self._mpv.command_async("frame-back-step")
+
+    def cycle_subtitle_track(self) -> None:
+        self._mpv.command_async("osd-msg", "cycle", "sub")
+
+    def cycle_audio_track(self) -> None:
+        self._mpv.command_async("osd-msg", "cycle", "audio")
+
     def terminate(self) -> None:
         self._mpv.terminate()
 
 
-class DualSignalCoordinator(QObject):
-    both_ready = Signal(object, object)
+class DimensionsChangedCoordinator(QObject):
+    both_ready = Signal(int, int)
 
-    def __init__(self, signal_a, signal_b, reset_signal=None):
+    def __init__(self, width_changed: SignalInstance, height_changed: SignalInstance, reset_signal: SignalInstance):
         super().__init__()
-        self._value_a = None
-        self._value_b = None
-        self._ready_a = False
-        self._ready_b = False
+        self._width = None
+        self._height = None
+        self._width_available = False
+        self._height_available = False
 
-        signal_a.connect(self._on_signal_a)
-        signal_b.connect(self._on_signal_b)
+        width_changed.connect(self._on_width_changed)
+        height_changed.connect(self._on_height_changed)
+        reset_signal.connect(self._reset)
 
-        if reset_signal:
-            reset_signal.connect(self._reset)
-
-    def _on_signal_a(self, value):
-        self._value_a = value
-        self._ready_a = True
+    @Slot(int)
+    def _on_width_changed(self, value):
+        self._width = value
+        self._width_available = True
         self._check_and_emit()
 
-    def _on_signal_b(self, value):
-        self._value_b = value
-        self._ready_b = True
+    @Slot(int)
+    def _on_height_changed(self, value):
+        self._height = value
+        self._height_available = True
         self._check_and_emit()
 
     def _check_and_emit(self):
-        if self._ready_a and self._ready_b and self._value_a and self._value_b:
-            self.both_ready.emit(self._value_a, self._value_b)
+        if self._width_available and self._height_available and self._width and self._height:
+            self.both_ready.emit(self._width, self._height)
             self._reset()
 
+    @Slot()
     def _reset(self):
-        self._ready_a = False
-        self._ready_b = False
+        self._width_available = False
+        self._height_available = False
 
 
 @dataclass(frozen=True)
@@ -319,7 +396,7 @@ class TrackListEntry:
     external_filename: str
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TrackListEntry":
+    def from_dict(cls, data: dict) -> TrackListEntry:
         return cls(
             type=data.get("type", ""),
             external=data.get("external", False) == True,  # noqa: E712

@@ -6,11 +6,11 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import inject
-from jinja2 import BaseLoader, Environment, TemplateError, TemplateSyntaxError
 from PySide6.QtCore import QCoreApplication, QDateTime, QLocale, QObject, QStandardPaths, Signal
 from PySide6.QtGui import QStandardItemModel
 
 from .application_paths import ApplicationPathsService
+from .build_info import BuildInfoService
 from .formatter_time import TimeFormatterService
 from .player import PlayerService
 from .resource import ResourceService
@@ -20,6 +20,7 @@ from .settings import SettingsService
 class DocumentRenderService:
     _player: PlayerService = inject.attr(PlayerService)
     _settings: SettingsService = inject.attr(SettingsService)
+    _build_info: BuildInfoService = inject.attr(BuildInfoService)
 
     class Filters:
         _time_formatter: TimeFormatterService = inject.attr(TimeFormatterService)
@@ -32,6 +33,8 @@ class DocumentRenderService:
             return QCoreApplication.translate("CommentTypes", comment_type)
 
     def __init__(self):
+        from jinja2 import BaseLoader, Environment
+
         self._env = Environment(loader=BaseLoader(), keep_trailing_newline=True)  # noqa: S701
         self._filters = self.Filters()
         self._env.filters["as_time"] = self._filters.as_time
@@ -47,13 +50,14 @@ class DocumentRenderService:
 
         date = QLocale(self._settings.language).toString(QDateTime.currentDateTime(), QLocale.FormatType.LongFormat)
         comments = QCoreApplication.instance().find_object(QStandardItemModel, "mpvqcCommentModel").comments()
-        generator = f"{QCoreApplication.applicationName()} {QCoreApplication.applicationVersion()}"
+        generator = f"{self._build_info.name} {self._build_info.version}"
         nickname = self._settings.nickname
         subtitles = [str(sub) for sub in self._player.external_subtitles]
 
-        if self._player.has_video:
-            video_path = f"{Path(self._player.path)}"
-            video_name = f"{Path(self._player.path).name}"
+        if (path := self._player.path) is not None:
+            path = Path(path)
+            video_path = str(path)  # use platform specific path separators
+            video_name = f"{path.name}"
         else:
             video_path = ""
             video_name = ""
@@ -85,8 +89,8 @@ class DocumentBackupService:
 
     @property
     def _video_name(self) -> str:
-        if self._player.has_video:
-            return Path(self._player.path).name
+        if (path := self._player.path) is not None:
+            return Path(path).name
         #: Will be used in the file name proposal when saving a qc document when there's no video being loaded
         return QCoreApplication.translate("FileInteractionDialogs", "untitled")
 
@@ -114,9 +118,10 @@ class DocumentExportService(QObject):
     export_error_occurred = Signal(str, int)
 
     def generate_file_path_proposal(self) -> Path:
-        if video := Path(self._player.path) if self._player.path else None:
-            video_directory = str(video.parent)
-            video_name = video.stem
+        if (path := self._player.path) is not None:
+            path = Path(path)
+            video_directory = str(path.parent)
+            video_name = path.stem
         else:
             video_directory = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.MoviesLocation)
             video_name = QCoreApplication.translate("FileInteractionDialogs", "untitled")
@@ -129,6 +134,8 @@ class DocumentExportService(QObject):
         return Path(video_directory).joinpath(file_name).absolute()
 
     def export(self, file: Path, template: Path) -> None:
+        from jinja2 import TemplateError, TemplateSyntaxError
+
         user_template = template.read_text(encoding="utf-8")
 
         try:

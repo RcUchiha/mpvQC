@@ -2,8 +2,8 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtGui import QGuiApplication, QScreen
+from PySide6.QtCore import QObject, Qt, Signal, Slot
+from PySide6.QtGui import QScreen
 
 
 class WindowPropertiesService(QObject):
@@ -20,7 +20,9 @@ class WindowPropertiesService(QObject):
         self._is_fullscreen = False
         self._is_maximized = False
 
-        self._window = QGuiApplication.topLevelWindows()[0]
+        from mpvqc.utility import get_main_window
+
+        self._window = get_main_window()
 
         self._on_width_changed(self._window.width())
         self._on_height_changed(self._window.height())
@@ -50,16 +52,19 @@ class WindowPropertiesService(QObject):
     def screen(self) -> QScreen:
         return self._window.screen()
 
+    @Slot(int)
     def _on_width_changed(self, width: int) -> None:
         if width != self._width:
             self._width = width
             self.width_changed.emit(width)
 
+    @Slot(int)
     def _on_height_changed(self, height: int) -> None:
         if height != self._height:
             self._height = height
             self.height_changed.emit(height)
 
+    @Slot(Qt.WindowState)
     def _on_window_state_changed(self, state: Qt.WindowState) -> None:
         is_fullscreen = state == Qt.WindowState.WindowFullScreen
         is_maximized = state == Qt.WindowState.WindowMaximized

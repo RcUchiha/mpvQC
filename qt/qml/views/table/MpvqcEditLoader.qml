@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
 import QtQuick
+import QtQuick.Controls.Material
 
 Loader {
     id: root
@@ -15,7 +16,7 @@ Loader {
 
     readonly property bool isEditingComment: source === editCommentPopup
 
-    signal commentEditPopupHeightChanged(heightDelta: int)
+    signal commentEditPopupHeightChanged(editorHeight: int, heightDelta: int)
 
     function _startEditingTime(index: int, time: int, coordinates: point): void {
         asynchronous = true;
@@ -39,12 +40,16 @@ Loader {
         active = true;
     }
 
-    function startEditingComment(index: int, currentComment: string, parentItem): void {
+    function startEditingComment(index: int, currentComment: string, parentItem: Label): void {
         asynchronous = false;
         setSource(editCommentPopup, {
             parent: parentItem,
             currentComment: currentComment,
-            currentListIndex: index
+            currentListIndex: index,
+            leftPadding: parentItem.leftPadding / 2,
+            rightPadding: parentItem.rightPadding / 2,
+            topPadding: parentItem.topPadding / 2,
+            bottomPadding: parentItem.bottomPadding / 2
         });
         active = true;
     }
@@ -90,22 +95,21 @@ Loader {
             root.viewModel.updateComment(index, newComment);
         }
 
-        function onCommentEditPopupHeightChanged(heightDelta: int): void {
-            root.commentEditPopupHeightChanged(heightDelta);
+        function onCommentEditPopupHeightChanged(editorHeight: int, heightDelta: int): void {
+            root.commentEditPopupHeightChanged(editorHeight, heightDelta);
         }
 
         function onClosed(): void {
-            _stopEditDelayTimer.restart();
-        }
-    }
-
-    Timer {
-        id: _stopEditDelayTimer
-
-        interval: root.isEditingComment ? 150 : 0
-
-        onTriggered: {
-            root.active = false;
+            // When closing without animation, focus loss triggers onClosed() before click handlers on delegates
+            // execute. Defer deactivation to allow click handlers to detect the editing state as a human would perceive
+            // it. In typical usage, this enables the sequence: editing → click other component → editor closes → new
+            // editor opens smoothly. The deferred check prevents deactivation during rapid editor transitions.
+            Qt.callLater(() => {
+                if (root.item && root.item.opened) {
+                    return;
+                }
+                root.active = false;
+            });
         }
     }
 }

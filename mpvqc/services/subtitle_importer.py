@@ -2,30 +2,33 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from loguru import logger
-
-from ._internal import Immutable
+logger = logging.getLogger(__name__)
 
 
 class SubtitleImporterService:
-    @dataclass
+    @dataclass(frozen=True)
     class SubtitleImportResult:
-        subtitles: list[Path] = field(default_factory=list)
-        existing_videos: list[Path] = field(default_factory=list)
+        subtitles: tuple[Path, ...] = field(default_factory=tuple)
+        existing_videos: tuple[Path, ...] = field(default_factory=tuple)
 
-    NO_IMPORT = Immutable(SubtitleImportResult())
+    NO_IMPORT = SubtitleImportResult()
 
-    def read(self, subtitles: list[Path]) -> SubtitleImportResult:
-        result = self.SubtitleImportResult(subtitles=subtitles)
+    def read(self, subtitles: Iterable[Path]) -> SubtitleImportResult:
+        existing_vids = []
 
         for subtitle in subtitles:
             if video := parse_video_from(subtitle):
-                result.existing_videos.append(video)  # noqa: PERF401
+                existing_vids.append(video)  # noqa: PERF401
 
-        return result
+        return self.SubtitleImportResult(
+            subtitles=tuple(subtitles),
+            existing_videos=tuple(existing_vids),
+        )
 
 
 def parse_video_from(subtitle: Path) -> Path | None:
@@ -34,7 +37,7 @@ def parse_video_from(subtitle: Path) -> Path | None:
             case ".ass" | ".ssa":
                 return parse_video_in_ass_ssa(subtitle)
     except Exception:
-        logger.exception("Failed to parse video path from subtitle file: {}", subtitle)
+        logger.exception("Failed to parse video path from subtitle file: %s", subtitle)
     return None
 
 

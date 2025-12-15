@@ -2,18 +2,13 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from typing import TYPE_CHECKING
-
 import inject
-from PySide6.QtCore import Property, QAbstractItemModel, QObject, QPointF, Signal, Slot
+from PySide6.QtCore import Property, QObject, QPointF, Signal, Slot
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtQml import QmlElement
 
-from mpvqc.services import PlayerService, SettingsService, TimeFormatterService
-
-if TYPE_CHECKING:
-    from mpvqc.models import MpvqcCommentModel
-
+from mpvqc.models import MpvqcCommentModel
+from mpvqc.services import PlayerService, SettingsService
 
 QML_IMPORT_NAME = "pyobjects"
 QML_IMPORT_MAJOR_VERSION = 1
@@ -24,7 +19,6 @@ QML_IMPORT_MAJOR_VERSION = 1
 class MpvqcCommentTableViewModel(QObject):
     _player: PlayerService = inject.attr(PlayerService)
     _settings: SettingsService = inject.attr(SettingsService)
-    _time_formatter: TimeFormatterService = inject.attr(TimeFormatterService)
 
     commentTypesChanged = Signal(list)
     videoDurationChanged = Signal(float)
@@ -61,16 +55,16 @@ class MpvqcCommentTableViewModel(QObject):
     def videoDuration(self) -> float:
         return self._player.duration
 
-    @Property(QAbstractItemModel, notify=modelChanged)
-    def model(self) -> QAbstractItemModel:
+    @Property(MpvqcCommentModel, notify=modelChanged)
+    def model(self) -> MpvqcCommentModel | None:
         return self._model
 
     @model.setter
-    def model(self, value: QAbstractItemModel) -> None:
+    def model(self, value: MpvqcCommentModel) -> None:
         if self._model == value:
             return
 
-        self._model: MpvqcCommentModel = value
+        self._model = value
 
         self._model.comments_imported_initial.connect(self.quickSelectionRequested)
         self._model.comments_imported_undo.connect(self.quickSelectionRequested)

@@ -16,8 +16,8 @@ defaults:
     shell: bash
 
 env:
-  LIBMPV_URL: https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20251010/mpv-dev-x86_64-20251010-git-e70bb88.7z
-  LIBMPV_SHA256: c0b0206be071e856a220787fc15dcd692396952d37923d7d884b61a982715643
+  LIBMPV_URL: https://github.com/shinchiro/mpv-winbuild-cmake/releases/download/20251211/mpv-dev-x86_64-20251211-git-95c7599.7z
+  LIBMPV_SHA256: 73a5b90628eb67040d7419abd3835348f8470180b00f434fbf70776abccbf914
 
 jobs:
   matrix-build:
@@ -32,7 +32,7 @@ jobs:
       artifact_app_name: ${{ steps.build_step.outputs.artifact_app_name }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Install Python 3.13
@@ -57,7 +57,7 @@ jobs:
           echo "::group::Download libmpv"
           if [ "$RUNNER_OS" == "Linux" ]; then
             execute sudo apt update -y
-            execute sudo apt install -y libegl1 libmpv2 qt6-base-dev
+            execute sudo apt install -y libegl1 libmpv2
           elif [ "$RUNNER_OS" == "Windows" ]; then
             ARTIFACT="$(basename "$LIBMPV_URL")"
 
@@ -79,9 +79,6 @@ jobs:
 
           #
           echo "::group::Set Build Information"
-          PLACEHOLDER_TAG=">>>tag<<<"
-          PLACEHOLDER_COMMIT=">>>commit-id<<<"
-
           CURRENT_TAG="$(git describe --tags --abbrev=0)"
           debug "git tag: $CURRENT_TAG"
 
@@ -89,17 +86,22 @@ jobs:
           CURRENT_COMMIT="${CURRENT_COMMIT:0:8}"
           debug "git commit: $CURRENT_COMMIT"
 
+          if [[ "${{ github.ref }}" =~ ^refs/tags/ ]]; then
+            IS_RELEASE="true"
+            debug "This is a release build (triggered by tag)"
+          else
+            IS_RELEASE="false"
+            debug "This is a development build"
+          fi
+
           ARTIFACT_NAME="mpvQC-$CURRENT_TAG-$CURRENT_COMMIT"
           debug "artifact name: $ARTIFACT_NAME"
           echo "artifact_app_name=$ARTIFACT_NAME" >> $GITHUB_OUTPUT
 
-          execute sed -i "s/$PLACEHOLDER_TAG/$CURRENT_TAG/g" "mpvqc/startup.py"
-          execute sed -i "s/$PLACEHOLDER_COMMIT/$CURRENT_COMMIT/g" "mpvqc/startup.py"
-          execute cat "mpvqc/startup.py"
-
-          execute sed -i "s/$PLACEHOLDER_TAG/$CURRENT_TAG/g" "qt/qml/dialogs/MpvqcAboutDialog.qml"
-          execute sed -i "s/$PLACEHOLDER_COMMIT/$CURRENT_COMMIT/g" "qt/qml/dialogs/MpvqcAboutDialog.qml"
-          execute cat "qt/qml/dialogs/MpvqcAboutDialog.qml"
+          execute sed -i '1,13s/^version = .*/version = "'"$CURRENT_TAG"'"/' "data/build-info.toml"
+          execute sed -i '1,13s/^commit = .*/commit = "'"$CURRENT_COMMIT"'"/' "data/build-info.toml"
+          execute sed -i '1,13s/^is_release = .*/is_release = '"$IS_RELEASE"'/' "data/build-info.toml"
+          execute cat "data/build-info.toml"
           echo "::endgroup::"
 
           #
@@ -108,16 +110,9 @@ jobs:
           echo "::endgroup::"
 
           #
-          echo "::group::Set Dependency Versions"
-          DEPENDENCY_MODEL_PATH="qt/qml/models/MpvqcLibraryModel.qml"
-          execute just insert-dependency-versions "$DEPENDENCY_MODEL_PATH"
-          execute cat "$DEPENDENCY_MODEL_PATH"
-          echo "::endgroup::"
-
-          #
           echo "::group::Run Python Build"
           execute just test-python
-          execute just clean
+          execute export MPVQC_COMPILE_QML=true
           execute just build
           echo "::endgroup::"
 
@@ -143,7 +138,7 @@ jobs:
       - matrix-build
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install Python 3.13
         uses: actions/setup-python@v6
         with:
@@ -176,42 +171,82 @@ jobs:
 
           execute source .venv/Scripts/activate
 
-          echo "::group::Run Nuitka"
           execute python.exe -m nuitka main.py \
-            --standalone \
             --assume-yes-for-downloads \
             --deployment \
             --enable-plugin=pyside6 \
-            --output-dir=deployment \
-            --output-filename=mpvQC.exe \
-            --windows-console-mode=attach \
-            --windows-icon-from-ico=build-aux/icon.ico \
-            --include-qt-plugins=qml,platforms \
-            --noinclude-qt-plugins=designer,multimedia,sqldrivers,virtualkeyboard,styles \
-            --noinclude-qt-translations \
+            --include-data-files=.venv/Lib/site-packages/PySide6/translations/qtbase_de.qm=PySide6/translations/ \
+            --include-data-files=.venv/Lib/site-packages/PySide6/translations/qtbase_en.qm=PySide6/translations/ \
+            --include-data-files=.venv/Lib/site-packages/PySide6/translations/qtbase_es.qm=PySide6/translations/ \
+            --include-data-files=.venv/Lib/site-packages/PySide6/translations/qtbase_he.qm=PySide6/translations/ \
+            --include-data-files=.venv/Lib/site-packages/PySide6/translations/qtbase_it.qm=PySide6/translations/ \
+            --include-data-files=.venv/Lib/site-packages/PySide6/translations/qtbase_pt_BR.qm=PySide6/translations/ \
             --include-data-files=LICENSES/*.txt=LICENSES/ \
-            --include-data-files=.venv/Lib/site-packages/PySide6/translations/qtbase*.qm=PySide6/translations/ \
+            --include-data-files=NOTICE.txt=NOTICE.txt \
+            --include-qt-plugins=qml,platforms \
             --nofollow-import-to='PySide6.QtWidgets' \
             --nofollow-import-to=tkinter,distutils,numpy.f2py \
-            --noinclude-data-files='PySide6/qml/QtQuick/Controls/designer/*' \
+            --noinclude-data-files='PySide6/qml/Qt/*' \
+            --noinclude-data-files='PySide6/qml/QtCore/*' \
+            --noinclude-data-files='PySide6/qml/QtNetwork/*' \
+            --noinclude-data-files='PySide6/qml/QtQml/*' \
             --noinclude-data-files='PySide6/qml/QtQuick/Controls/FluentWinUI3/*' \
             --noinclude-data-files='PySide6/qml/QtQuick/Controls/Fusion/*' \
             --noinclude-data-files='PySide6/qml/QtQuick/Controls/Imagine/*' \
             --noinclude-data-files='PySide6/qml/QtQuick/Controls/Universal/*' \
             --noinclude-data-files='PySide6/qml/QtQuick/Controls/Windows/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/Controls/designer/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/Effects/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/LocalStorage/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/NativeStyle/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/Particles/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/Pdf/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/Scene2D/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/Scene3D/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/Shapes/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/Timeline/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/VectorImage/*' \
             --noinclude-data-files='PySide6/qml/QtQuick/VirtualKeyboard/*' \
+            --noinclude-data-files='PySide6/qml/QtQuick/tooling/*' \
             --noinclude-data-files='PySide6/qml/QtTest/*' \
             --noinclude-data-files='PySide6/qml/QtWebEngine/*' \
             --noinclude-data-files='PySide6/qt-plugins/styles/*' \
+            --noinclude-dlls='PySide6/qml/Qt/*' \
+            --noinclude-dlls='PySide6/qml/QtCore/*' \
+            --noinclude-dlls='PySide6/qml/QtNetwork/*' \
+            --noinclude-dlls='PySide6/qml/QtQml/*' \
             --noinclude-dlls='PySide6/qml/QtQuick/Controls/FluentWinUI3/*' \
             --noinclude-dlls='PySide6/qml/QtQuick/Controls/Fusion/*' \
             --noinclude-dlls='PySide6/qml/QtQuick/Controls/Imagine/*' \
             --noinclude-dlls='PySide6/qml/QtQuick/Controls/Universal/*' \
             --noinclude-dlls='PySide6/qml/QtQuick/Controls/Windows/*' \
             --noinclude-dlls='PySide6/qml/QtQuick/Controls/designer/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/Effects/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/LocalStorage/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/NativeStyle/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/Particles/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/Pdf/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/Scene2D/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/Scene3D/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/Shapes/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/Timeline/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/VectorImage/*' \
             --noinclude-dlls='PySide6/qml/QtQuick/VirtualKeyboard/*' \
+            --noinclude-dlls='PySide6/qml/QtQuick/tooling/*' \
             --noinclude-dlls='PySide6/qml/QtTest/*' \
             --noinclude-dlls='PySide6/qml/QtWebEngine/*' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qgif.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qicns.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qjpeg.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qpdf.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qpng.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qtga.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qtiff.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qwbmp.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/imageformats/qwebp.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/platforms/qdirect2d.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/platforms/qminimal.dll' \
+            --noinclude-dlls='PySide6/qt-plugins/platforms/qoffscreen.dll' \
             --noinclude-dlls='PySide6/qt-plugins/styles/*' \
             --noinclude-dlls='Qt6Charts*' \
             --noinclude-dlls='Qt6DataVisualization*' \
@@ -221,46 +256,81 @@ jobs:
             --noinclude-dlls='Qt6Test*' \
             --noinclude-dlls='Qt6WebEngine*' \
             --noinclude-dlls='opengl32sw.dll' \
+            --noinclude-dlls='qt6dbus.dll' \
             --noinclude-dlls='qt6designer.dll' \
+            --noinclude-dlls='qt6labsanimation.dll' \
+            --noinclude-dlls='qt6labsfolderlistmodel.dll' \
+            --noinclude-dlls='qt6labsplatform.dll' \
+            --noinclude-dlls='qt6labsqmlmodels.dll' \
+            --noinclude-dlls='qt6labssettings.dll' \
+            --noinclude-dlls='qt6labssharedimage.dll' \
+            --noinclude-dlls='qt6labswavefrontmesh.dll' \
             --noinclude-dlls='qt6pdf.dll' \
             --noinclude-dlls='qt6qmlcompiler.dll' \
+            --noinclude-dlls='qt6qmllocalstorage.dll' \
+            --noinclude-dlls='qt6qmlnetwork.dll' \
+            --noinclude-dlls='qt6qmlxmllistmodel.dll' \
             --noinclude-dlls='qt6quickcontrols2fluentwinui3style*.dll' \
             --noinclude-dlls='qt6quickcontrols2fusion*.dll' \
             --noinclude-dlls='qt6quickcontrols2imagine*.dll' \
             --noinclude-dlls='qt6quickcontrols2universal*.dll' \
             --noinclude-dlls='qt6quickcontrols2windows*.dll' \
+            --noinclude-dlls='qt6quickeffects.dll' \
             --noinclude-dlls='qt6quickparticles.dll' \
+            --noinclude-dlls='qt6quickshapes.dll' \
+            --noinclude-dlls='qt6quicktest.dll' \
+            --noinclude-dlls='qt6quicktimeline.dll' \
+            --noinclude-dlls='qt6quicktimelineblendtrees.dll' \
+            --noinclude-dlls='qt6quickvectorimage.dll' \
+            --noinclude-dlls='qt6quickvectorimagegenerator.dll' \
+            --noinclude-dlls='qt6sql.dll' \
             --noinclude-dlls='qt6widgets.dll' \
+            --noinclude-qt-plugins=designer,multimedia,sqldrivers,virtualkeyboard,styles,tls \
+            --noinclude-qt-translations \
+            --onefile \
+            --onefile-tempdir-spec={CACHE_DIR}/mpvQC/${{ needs.matrix-build.outputs.artifact_app_name }} \
+            --onefile-windows-splash-screen-image=build-aux/windows-splash.png \
+            --output-dir=deployment/mpvqc-onefile \
+            --windows-console-mode=attach \
+            --windows-icon-from-ico=build-aux/windows-icon.ico \
             --output-filename=mpvQC.exe
-          echo "::endgroup::"
 
-          #
-          echo "::group::Package libmpv"
+          execute mkdir -p deployment/mpvQC-distribution
+          execute mv deployment/mpvqc-onefile/mpvQC.exe deployment/mpvQC-distribution/mpvQC.exe
+      - name: Package libmpv
+        run: |
+          function execute() { echo -e "\033[0;34m$*\033[0m"; "$@"; }
+
           ARTIFACT="$(basename "$LIBMPV_URL")"
           execute curl -L -O "$LIBMPV_URL"
           echo -e "\033[0;34mecho -n $LIBMPV_SHA256 $ARTIFACT > $ARTIFACT.sha256\033[0m"
           echo -n "$LIBMPV_SHA256 $ARTIFACT" > "$ARTIFACT.sha256"
           execute sha256sum --check "$ARTIFACT.sha256"
           execute 7z x "$ARTIFACT"
-          execute mv libmpv-2.dll deployment/main.dist
-          echo "::endgroup::"
+          execute mv libmpv-2.dll deployment/mpvQC-distribution/
+      - name: Make Application Portable
+        run: |
+          function execute() { echo -e "\033[0;34m$*\033[0m"; "$@"; }
 
-          #
-          echo "::group::Make Application Portable"
-          execute touch deployment/main.dist/portable
-          echo "::endgroup::"
+          execute touch deployment/mpvQC-distribution/portable
+      - name: Copy License Files to Distribution
+        run: |
+          function execute() { echo -e "\033[0;34m$*\033[0m"; "$@"; }
+
+          execute cp -r LICENSES deployment/mpvQC-distribution/
+          execute cp NOTICE.txt deployment/mpvQC-distribution/
       - name: Upload Artifact
         uses: actions/upload-artifact@v5
         with:
           name: ${{ needs.matrix-build.outputs.artifact_app_name }}-win-x86_64
-          path: deployment/main.dist
+          path: deployment/mpvQC-distribution
 
   test_qml:
     runs-on: ubuntu-latest
     name: Qml Tests
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install Python 3.13
         uses: actions/setup-python@v6
         with:
@@ -274,7 +344,7 @@ jobs:
       - name: Update Packages
         run: sudo apt update -y
       - name: Install Dependencies
-        run: sudo apt install -y libegl1 libmpv2 qt6-base-dev
+        run: sudo apt install -y libegl1 libmpv2
       - name: Initialize Project
         run: just init
       - name: Execute Qml Tests
@@ -285,7 +355,7 @@ jobs:
     name: Linting & Formatting
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
       - name: Install Python 3.13
         uses: actions/setup-python@v6
         with:
@@ -299,7 +369,7 @@ jobs:
       - name: Update Packages
         run: sudo apt update -y
       - name: Install Dependencies
-        run: sudo apt install -y qt6-base-dev
+        run: sudo apt install -y
       - name: Initialize Project
         run: just init
       - name: Run Linter and Formatter

@@ -135,27 +135,33 @@ ListView {
 
         viewModel: root.viewModel
 
-        function _shouldScrollToAccommodateGrowth(heightDelta: int): bool {
+        // Calculate how much to scroll to keep the expanding editor visible.
+        // Returns the scroll amount needed, or 0 if no scrolling is required.
+        function _calculateScrollAmount(heightDelta: int): int {
             if (heightDelta <= 0) {
-                return false;
+                return 0;
             }
 
             const currentItem = root.currentItem;
             if (!currentItem) {
-                return false;
+                return 0;
             }
 
             const itemY = currentItem.y - root.contentY;
             const itemBottom = itemY + currentItem.height;
             const newItemBottom = itemBottom + heightDelta;
 
-            // Only scroll if the new bottom would overflow the viewport
-            return newItemBottom > root.height;
+            const overflow = newItemBottom - root.height;
+            return Math.max(0, overflow);
         }
 
-        onCommentEditPopupHeightChanged: heightDelta => {
-            if (_shouldScrollToAccommodateGrowth(heightDelta)) {
-                root.contentY += heightDelta;
+        onCommentEditPopupHeightChanged: (editorHeight, heightDelta) => {
+            const scrollAmount = _calculateScrollAmount(heightDelta);
+            if (scrollAmount > 0) {
+                // Force immediate layout update by setting the editor height explicitly
+                // This does not break the binding, but we can scroll to accommodate growth
+                root.currentItem.commentLabel.editorHeight = editorHeight;
+                root.contentY += scrollAmount;
             }
         }
     }
@@ -212,7 +218,7 @@ ListView {
         function onCommentEditRequested(index: int): void {
             root.positionViewAtIndex(index, ListView.Contain);
             const item = root.currentItem as MpvqcCommentListDelegate;
-            const comment = item.comment; // qmllint disable
+            const comment = item.comment;
             const commentLabel = item.commentLabel;
             _editLoader.startEditingComment(index, comment, commentLabel);
         }

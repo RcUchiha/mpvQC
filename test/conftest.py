@@ -6,12 +6,21 @@ from collections.abc import Callable, Generator
 from importlib.util import find_spec
 from typing import Any
 
+import inject
 import pytest
 from PySide6.QtCore import QByteArray, QCoreApplication, QObject, Signal, SignalInstance
 from PySide6.QtTest import QSignalSpy
 
 from mpvqc.application import MpvqcApplication
-from mpvqc.services import SettingsService, StateService, TypeMapperService
+from mpvqc.services import (
+    ResourceReaderService,
+    ResourceService,
+    ReverseTranslatorService,
+    SettingsService,
+    StateService,
+    TimeFormatterService,
+    TypeMapperService,
+)
 
 
 class PlayerMock(QObject):
@@ -133,7 +142,7 @@ def settings_service(tmp_path, type_mapper):
     return SettingsService(ini_file=type_mapper.map_path_to_str(file))
 
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture
 def qt_app() -> Generator[MpvqcApplication, Any]:
     QCoreApplication.setApplicationName("TestApp")
     app = MpvqcApplication([])
@@ -150,3 +159,23 @@ def check_generated_resources():
         )
         raise FileNotFoundError(message)
     import test.rc_project  # noqa: F401
+
+
+@pytest.fixture(scope="session")
+def common_bindings_with():
+    def _configure(*custom_configs):
+        def config(binder: inject.Binder):
+            # Common & shared services
+            binder.bind_to_constructor(ResourceReaderService, ResourceReaderService)
+            binder.bind_to_constructor(ResourceService, ResourceService)
+            binder.bind_to_constructor(ReverseTranslatorService, ReverseTranslatorService)
+            binder.bind_to_constructor(TimeFormatterService, TimeFormatterService)
+            binder.bind_to_constructor(TypeMapperService, TypeMapperService)
+
+            # Custom services
+            for custom_config in custom_configs:
+                custom_config(binder)
+
+        inject.configure(config, allow_override=True, bind_in_runtime=False, clear=True)
+
+    return _configure

@@ -5,6 +5,7 @@
 # ruff: noqa: F401
 from .application_environment import ApplicationEnvironmentService
 from .application_paths import ApplicationPathsService
+from .build_info import BuildInfoService
 from .comment_type_validator import CommentTypeValidatorService
 from .document_exporter import DocumentBackupService, DocumentExportService, DocumentRenderService
 from .document_importer import DocumentImporterService
@@ -12,7 +13,7 @@ from .exporter import ExportService
 from .file_startup import FileStartupService
 from .font_loader import FontLoaderService
 from .formatter_time import TimeFormatterService
-from .frameless import FramelessWindowService
+from .frameless import FramelessWindowService, get_frameless_window_service
 from .host_integration import HostIntegrationService, WindowButtonPreference
 from .i18n import InternationalizationService
 from .importer import ImporterService

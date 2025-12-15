@@ -3,6 +3,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 # ruff: noqa: F401
+from .application import MpvqcApplicationViewModel
 from .backup_timer import MpvqcBackupTimerViewModel
 from .content import MpvqcContentViewModel
 from .dialog_loader import MpvqcDialogLoaderViewModel
@@ -19,7 +20,7 @@ from .dialogs import (
 from .drop_area import MpvqcDropAreaViewModel
 from .file_dialogs import MpvqcExportFileDialogViewModel, MpvqcImportFileDialogViewModel
 from .footer import MpvqcFooterViewModel
-from .header import MpvqcHeaderViewModel
+from .header import MpvqcHeaderViewModel, MpvqcMenuBarViewModel, MpvqcToolBarViewModel
 from .message_box_loader import MpvqcMessageBoxLoaderViewModel
 from .message_boxes import MpvqcResetMessageBoxViewModel, MpvqcVersionCheckMessageBoxViewModel
 from .new_comment_menu import MpvqcNewCommentMenuViewModel

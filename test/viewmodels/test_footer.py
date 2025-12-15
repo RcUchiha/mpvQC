@@ -5,7 +5,7 @@
 import inject
 import pytest
 
-from mpvqc.services import LabelWidthCalculatorService, PlayerService, SettingsService, TimeFormatterService
+from mpvqc.services import LabelWidthCalculatorService, PlayerService, SettingsService
 from mpvqc.viewmodels.footer import MpvqcFooterViewModel
 
 
@@ -16,14 +16,18 @@ def view_model():
 
 
 @pytest.fixture(autouse=True)
-def configure_inject(player_service_mock, settings_service):
-    def config(binder: inject.Binder):
+def configure_inject(common_bindings_with, player_service_mock, settings_service):
+    def custom_bindings(binder: inject.Binder):
         binder.bind(PlayerService, player_service_mock)
         binder.bind(SettingsService, settings_service)
-        binder.bind(TimeFormatterService, TimeFormatterService())
         binder.bind(LabelWidthCalculatorService, LabelWidthCalculatorService())
 
-    inject.configure(config, clear=True)
+    common_bindings_with(custom_bindings)
+
+
+@pytest.fixture(autouse=True)
+def qt_app_must_be_running(qt_app):
+    pass
 
 
 def test_initial_state(view_model):

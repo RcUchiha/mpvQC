@@ -4,16 +4,15 @@
 
 [project]
 name = "mpvQC"
-version = "0.9.0-beta"
+version = "0.9.0-beta3"
 description = "libmpv based application for quality control of videos"
-requires-python = ">=3.13"
+requires-python = "~=3.13.0"
 readme = "README.MD"
 dependencies = [
     "inject>=5.3.0",
     "Jinja2>=3.1.6",
-    "loguru~=0.7.3",
     "mpv>=1.0.8",
-    "PySide6-Essentials==6.10.0",
+    "PySide6-Essentials==6.10.1",
     "pywin32>=311; sys_platform == 'win32'",
 ]
 classifiers = [
@@ -25,7 +24,7 @@ classifiers = [
 
 [dependency-groups]
 dev = [
-    "pytest>=8.4.2",
+    "pytest>=9.0.1",
     "materialyoucolor>=2.0.10",
 ]
 
@@ -80,6 +79,7 @@ extend-select = [
 ]
 
 ignore = [
+    "E402",    # Module level import not at top of file
     "PLC0415", # `import` should be at top of file
     "PLC1901", # Simplifiable string comparisons
     "PLR0904", # Too many public methods
@@ -114,6 +114,7 @@ notice-rgx = "SPDX-FileCopyrightText: mpvQC developers"
 [tool.pyside6-project]
 files = [
     # WARNING! This list is auto updated by the just build helper
+    "data/build-info.toml",
     "data/config/backup-template.jinja",
     "data/config/export-template.jinja",
     "data/config/input.conf",
@@ -143,6 +144,7 @@ files = [
     "data/icons/exit_to_app_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/file_export_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/file_open_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
+    "data/icons/first_page_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/folder_open_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/info_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/keyboard_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
@@ -154,9 +156,11 @@ files = [
     "data/icons/keyboard_double_arrow_right_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/keyboard_return_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/language_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
+    "data/icons/last_page_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/minimize_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/movie_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/movie_edit_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
+    "data/icons/music_note_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/notes_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/open_in_full_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
     "data/icons/palette_24dp_1F1F1F_FILL0_wght400_GRAD0_opsz24.svg",
@@ -185,9 +189,10 @@ files = [
     "main.py",
     "mpvqc/__init__.py",
     "mpvqc/application.py",
+    "mpvqc/build.py",
     "mpvqc/datamodels.py",
     "mpvqc/injections.py",
-    "mpvqc/logging.py",
+    "mpvqc/logging_utils.py",
     "mpvqc/models/__init__.py",
     "mpvqc/models/comments/__init__.py",
     "mpvqc/models/comments/item.py",
@@ -195,15 +200,16 @@ files = [
     "mpvqc/models/comments/roles.py",
     "mpvqc/models/comments/undo.py",
     "mpvqc/models/comments/utils.py",
+    "mpvqc/models/dependencies.py",
     "mpvqc/models/export_templates.py",
     "mpvqc/models/import_options.py",
     "mpvqc/models/languages.py",
     "mpvqc/models/theme_palette.py",
     "mpvqc/models/theme_preview.py",
     "mpvqc/services/__init__.py",
-    "mpvqc/services/_internal.py",
     "mpvqc/services/application_environment.py",
     "mpvqc/services/application_paths.py",
+    "mpvqc/services/build_info.py",
     "mpvqc/services/comment_type_validator.py",
     "mpvqc/services/document_exporter.py",
     "mpvqc/services/document_importer.py",
@@ -220,13 +226,7 @@ files = [
     "mpvqc/services/frameless/win/event.py",
     "mpvqc/services/frameless/win/utils.py",
     "mpvqc/services/host_integration/__init__.py",
-    "mpvqc/services/host_integration/linux/__init__.py",
-    "mpvqc/services/host_integration/linux/generic.py",
-    "mpvqc/services/host_integration/linux/gnome.py",
-    "mpvqc/services/host_integration/linux/portals.py",
-    "mpvqc/services/host_integration/linux/utility.py",
-    "mpvqc/services/host_integration/types.py",
-    "mpvqc/services/host_integration/windows.py",
+    "mpvqc/services/host_integration/portals.py",
     "mpvqc/services/i18n.py",
     "mpvqc/services/importer.py",
     "mpvqc/services/key_command.py",
@@ -254,8 +254,10 @@ files = [
     "mpvqc/utility/theme.py",
     "mpvqc/utility/window_buttons.py",
     "mpvqc/utility/window_properties.py",
+    "mpvqc/utility/window_utils.py",
     "mpvqc/utility/window_visibility.py",
     "mpvqc/viewmodels/__init__.py",
+    "mpvqc/viewmodels/application.py",
     "mpvqc/viewmodels/backup_timer.py",
     "mpvqc/viewmodels/content.py",
     "mpvqc/viewmodels/dialog_loader.py",
@@ -273,7 +275,10 @@ files = [
     "mpvqc/viewmodels/file_dialogs/export_file_dialog.py",
     "mpvqc/viewmodels/file_dialogs/import_file_dialogs.py",
     "mpvqc/viewmodels/footer.py",
-    "mpvqc/viewmodels/header.py",
+    "mpvqc/viewmodels/header/__init__.py",
+    "mpvqc/viewmodels/header/header.py",
+    "mpvqc/viewmodels/header/menu_bar.py",
+    "mpvqc/viewmodels/header/toolbar.py",
     "mpvqc/viewmodels/message_box_loader.py",
     "mpvqc/viewmodels/message_boxes/__init__.py",
     "mpvqc/viewmodels/message_boxes/quit.py",
@@ -289,7 +294,6 @@ files = [
     "mpvqc/views/player_framebuffer_object.py",
     "mpvqc/views/player_win_id.py",
     "project.qrc",
-    "qt/qml/MpvqcApplication.qml",
     "qt/qml/components/MpvqcDebugRectangle.qml",
     "qt/qml/components/MpvqcDialog.qml",
     "qt/qml/components/MpvqcHeader.qml",
@@ -331,28 +335,31 @@ files = [
     "qt/qml/messageboxes/MpvqcQuitMessageBox.qml",
     "qt/qml/messageboxes/MpvqcResetMessageBox.qml",
     "qt/qml/messageboxes/MpvqcVersionCheckMessageBox.qml",
-    "qt/qml/messageboxes/MpvqcVideoFoundMessageBox.qml",
-    "qt/qml/messageboxes/qmldir",
     "qt/qml/models/MpvqcCreditsModel.qml",
-    "qt/qml/models/MpvqcLibraryModel.qml",
     "qt/qml/models/MpvqcShortcutsModel.qml",
     "qt/qml/models/qmldir",
-    "qt/qml/styles/MpvqcStyle/ToolTip.qml",
+    "qt/qml/MpvqcApplication.qml",
     "qt/qml/styles/MpvqcStyle/qmldir",
+    "qt/qml/styles/MpvqcStyle/ToolTip.qml",
     "qt/qml/utility/MpvqcConstants.qml",
     "qt/qml/utility/MpvqcLabelWidthCalculator.qml",
     "qt/qml/utility/MpvqcTheme.qml",
     "qt/qml/utility/MpvqcWindowUtility.qml",
     "qt/qml/utility/qmldir",
+    "qt/qml/views/header/MpvqcHeaderMenuBar.qml",
+    "qt/qml/views/header/MpvqcHeaderView.qml",
+    "qt/qml/views/header/MpvqcToolBarView.qml",
+    "qt/qml/views/header/qmldir",
     "qt/qml/views/main/MpvqcContentView.qml",
     "qt/qml/views/main/MpvqcDialogLoaderView.qml",
     "qt/qml/views/main/MpvqcFileDialogLoaderView.qml",
     "qt/qml/views/main/MpvqcFileDropAreaView.qml",
     "qt/qml/views/main/MpvqcFooterView.qml",
-    "qt/qml/views/main/MpvqcHeaderView.qml",
     "qt/qml/views/main/MpvqcMessageBoxLoaderView.qml",
     "qt/qml/views/main/MpvqcNewCommentMenuView.qml",
+    "qt/qml/views/main/MpvqcPlayerLinux.qml",
     "qt/qml/views/main/MpvqcPlayerView.qml",
+    "qt/qml/views/main/MpvqcPlayerWindows.qml",
     "qt/qml/views/main/qmldir",
     "qt/qml/views/main/tst_MpvqcDialogLoaderView.qml",
     "qt/qml/views/main/tst_MpvqcFileDialogLoaderView.qml",

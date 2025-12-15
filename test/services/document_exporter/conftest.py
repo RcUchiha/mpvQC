@@ -8,7 +8,13 @@ from unittest.mock import MagicMock, patch
 import inject
 import pytest
 
-from mpvqc.services import PlayerService, ResourceReaderService, ResourceService, SettingsService
+from mpvqc.services import (
+    ApplicationPathsService,
+    BuildInfoService,
+    DocumentRenderService,
+    PlayerService,
+    SettingsService,
+)
 
 MODULE = "mpvqc.services.document_exporter"
 
@@ -20,7 +26,46 @@ def qt_app():
 
 
 @pytest.fixture
-def make_mock(qt_app, settings_service):
+def application_paths_service_mock() -> MagicMock:
+    return MagicMock(spec_set=ApplicationPathsService)
+
+
+@pytest.fixture
+def build_info_service_mock() -> MagicMock:
+    return MagicMock(spec_set=BuildInfoService)
+
+
+@pytest.fixture
+def document_render_service_mock() -> MagicMock:
+    return MagicMock(spec_set=DocumentRenderService)
+
+
+@pytest.fixture
+def player_service_mock():
+    return MagicMock(spec_set=PlayerService)
+
+
+@pytest.fixture(autouse=True)
+def configure_injections(
+    common_bindings_with,
+    application_paths_service_mock,
+    build_info_service_mock,
+    document_render_service_mock,
+    player_service_mock,
+    settings_service,
+):
+    def custom_bindings(binder: inject.Binder):
+        binder.bind(ApplicationPathsService, application_paths_service_mock)
+        binder.bind(BuildInfoService, build_info_service_mock)
+        binder.bind(DocumentRenderService, document_render_service_mock)
+        binder.bind(PlayerService, player_service_mock)
+        binder.bind(SettingsService, settings_service)
+
+    common_bindings_with(custom_bindings)
+
+
+@pytest.fixture
+def configure_mocks(qt_app, settings_service, player_service_mock):
     def _make_mock(
         video: Path | str | None = None,
         nickname: str | None = None,
@@ -42,17 +87,7 @@ def make_mock(qt_app, settings_service):
         settings_service.write_header_subtitles = write_header_subtitles
         settings_service.language = "en-US"
 
-        player_mock = MagicMock(spec_set=PlayerService)
-        player_mock.path = str(video) if video else None
-        player_mock.has_video = bool(video)
-        player_mock.external_subtitles = subtitles or []
-
-        def config(binder: inject.Binder):
-            binder.bind(PlayerService, player_mock)
-            binder.bind(SettingsService, settings_service)
-            binder.bind(ResourceReaderService, ResourceReaderService())
-            binder.bind(ResourceService, ResourceService())
-
-        inject.configure(config, clear=True)
+        player_service_mock.path = str(video) if video else None
+        player_service_mock.external_subtitles = subtitles or []
 
     return _make_mock

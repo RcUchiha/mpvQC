@@ -24,11 +24,19 @@
         <translation>Consultar a %1 para mais detalhes.</translation>
     </message>
     <message>
+        <source>Copy version info to clipboard</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Made by</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Powered by</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Powered by Python %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
@@ -552,11 +560,11 @@
     </message>
     <message>
         <source>Video Found</source>
-        <translation>Vídeo Encontrado</translation>
+        <translation type="vanished">Vídeo Encontrado</translation>
     </message>
     <message>
         <source>A video was found. Do you want to open it?</source>
-        <translation>Foi encontrado um vídeo. Deseja abri-lo?</translation>
+        <translation type="vanished">Foi encontrado um vídeo. Deseja abri-lo?</translation>
     </message>
     <message>
         <source>Delete Comment</source>
@@ -625,6 +633,11 @@
     <message>
         <source>Keyboard Shortcuts</source>
         <translation>Atalhos de Teclado</translation>
+    </message>
+    <message>
+        <source>Search</source>
+        <extracomment>Placeholder text for search entry</extracomment>
+        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>Open QC Document(s)</source>
@@ -765,6 +778,29 @@
     <message>
         <source>Redo Previous Action</source>
         <translation>Refazer Acção Anterior</translation>
+    </message>
+</context>
+<context>
+    <name>ToolBar</name>
+    <message>
+        <source>Frame Step Backward (%1)</source>
+        <extracomment>Tooltip for &apos;Frame Step Backward&apos;, %1 will be the default shortcut button identifier</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Frame Step Forward (%1)</source>
+        <extracomment>Tooltip for &apos;Frame Step Forward&apos;, %1 will be the default shortcut button identifier</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cycle Subtitle Track (%1)</source>
+        <extracomment>Tooltip for &apos;Cycle Subtitle Track&apos;, %1 will be the default shortcut button identifier</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cycle Audio Track (%1)</source>
+        <extracomment>Tooltip for &apos;Cycle Audio Track&apos;, %1 will be the default shortcut button identifier</extracomment>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

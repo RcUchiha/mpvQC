@@ -8,15 +8,20 @@ import QtQuick.Controls.Material
 import pyobjects
 
 import "utility"
+import "views/header"
 import "views/main"
 
 ApplicationWindow {
     id: root
 
+    readonly property MpvqcApplicationViewModel viewModel: MpvqcApplicationViewModel {}
+
+    readonly property bool isWindows: Qt.platform.os === "windows"
     readonly property int windowsFlags: Qt.CustomizeWindowHint | Qt.Window
     readonly property int linuxFlags: Qt.FramelessWindowHint | Qt.Window
 
-    flags: Qt.platform.os === "windows" ? windowsFlags : linuxFlags
+    objectName: "MpvqcMainWindow"
+    flags: isWindows ? windowsFlags : linuxFlags
 
     width: 1280
     height: 720
@@ -24,7 +29,7 @@ ApplicationWindow {
     minimumWidth: 960
     minimumHeight: 540
 
-    visible: true
+    visible: false
     color: Material.background
 
     font {
@@ -43,9 +48,8 @@ ApplicationWindow {
     MpvqcContentView {
         id: _content
 
-        headerViewModel: _headerViewModel
-        contentViewModel: _contentViewModel
-        windowBorder: MpvqcWindowUtility.isFullscreen || MpvqcWindowUtility.isMaximized ? 0 : 1
+        viewModel: _contentViewModel
+        windowBorder: root.viewModel.windowBorder
 
         focus: true
         anchors.fill: parent
@@ -53,6 +57,7 @@ ApplicationWindow {
 
         header: MpvqcHeaderView {
             viewModel: _headerViewModel
+            menuBarViewModel: _menuBarViewModel
             width: root.width
         }
     }
@@ -82,17 +87,36 @@ ApplicationWindow {
 
         onPressed: event => {
             // *********************************************************
-            // fixme: Workaround QTBUG-131786 to fake modal behavior on Windows
-            event.accepted = !!root.nativePopupOpen;
+            if (root.isWindows) {
+                // fixme: Workaround QTBUG-131786 to fake modal behavior on Windows
+                const isAnyHeaderMenuOpened = _content.header.isAnyMenuVisible;
+                const isCommentMenuOpened = _content.commentMenu.visible;
+                const isModalFakerActive = !!root.nativePopupOpen;
+                // If any of the above is true => swallow mouse event
+                event.accepted = isAnyHeaderMenuOpened || isCommentMenuOpened || isModalFakerActive;
+            } else {
+                // fixme: Default after QTBUG-131786 is resolved
+                event.accepted = false;
+            }
             // *********************************************************
-
-            // event.accepted = false;
             _content.focusCommentTable();
         }
     }
 
     MpvqcHeaderViewModel {
         id: _headerViewModel
+
+        onWindowDragRequested: root.startSystemMove()
+
+        onMinimizeAppRequested: root.showMinimized()
+
+        onToggleMaximizeAppRequested: _windowVisibilityHandler.toggleMaximized()
+
+        onCloseAppRequested: root.close()
+    }
+
+    MpvqcMenuBarViewModel {
+        id: _menuBarViewModel
 
         onConfirmResetRequested: _messageBoxLoader.openResetMessageBox()
 
@@ -105,6 +129,8 @@ ApplicationWindow {
         onOpenVideoRequested: _fileDialogLoader.openImportVideoDialog()
 
         onOpenSubtitlesRequested: _fileDialogLoader.openImportSubtitlesDialog()
+
+        onResizeVideoRequested: _content.resizeVideo()
 
         onAppearanceDialogRequested: _dialogLoader.openAppearanceDialog()
 
@@ -127,12 +153,6 @@ ApplicationWindow {
         onUpdateDialogRequested: _messageBoxLoader.openVersionCheckMessageBox()
 
         onExtendedExportDialogRequested: _messageBoxLoader.openExtendedExportsMessageBox()
-
-        onWindowDragRequested: root.startSystemMove()
-
-        onMinimizeAppRequested: root.showMinimized()
-
-        onToggleMaximizeAppRequested: _windowVisibilityHandler.toggleMaximized()
 
         onCloseAppRequested: root.close()
     }

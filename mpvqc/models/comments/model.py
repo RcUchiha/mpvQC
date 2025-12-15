@@ -114,7 +114,7 @@ class MpvqcCommentModel(QStandardItemModel):
         return retrieve_comments_from(self)
 
     @Slot(list)
-    def import_comments(self, comments: list[Comment]) -> None:
+    def import_comments(self, comments: tuple[Comment, ...]) -> None:
         if not comments:
             return
 
@@ -141,6 +141,7 @@ class MpvqcCommentModel(QStandardItemModel):
             )
         )
 
+    @Slot()
     def clear_comments(self) -> None:
         def on_after_undo():
             self.layoutChanged.emit()

@@ -2,18 +2,15 @@
 #
 # SPDX-License-Identifier: MIT
 
-export QT_QPA_PLATFORM := 'offscreen'
-export QT_QUICK_CONTROLS_MATERIAL_VARIANT := 'Dense'
-export QT_QUICK_CONTROLS_STYLE := 'Material'
+set dotenv-load := true
+
+alias fmt := format
 
 @_default:
-    just --list
+    just --list --unsorted
 
-# Format code
-@format:
-    uvx prek run --all-files
-
-# Initialize repository
+# Install dependencies and configure basic stuff
+[group('dev')]
 init ARGS='--group dev':
     #!/usr/bin/env bash
     uv sync {{ ARGS }}
@@ -36,6 +33,19 @@ init ARGS='--group dev':
       echo '{{ '{{' }}' > appdata/export-templates/export-error.jinja
     fi
 
+[group('dev')]
+@format:
+    uvx prek@0.2.17 run --all-files
+
+[group('dev')]
+update-python-dependencies:
+    uv sync --upgrade
+    just _update-dependency-versions
+
+[group('dev')]
+update-git-hook-dependencies:
+    uvx prek@0.2.17 autoupdate
+
 # Build full project into build/release
 [group('build')]
 @build: clean
@@ -52,31 +62,15 @@ init ARGS='--group dev':
 
 # Remove ALL generated files
 [group('build')]
-@clean: _update_pyproject_file
-    uv run pyside6-project clean
-    rm -rf build test/rc_project.py project.json project.qrc
-
-# Add language; pattern: language-region ISO 639-1, ISO 3166-1; example: fr-FR
-[group('i18n')]
-@add-translation locale: _update_pyproject_file
-    uv run pyside6-lupdate -source-language en-US -target-language {{ locale }} -ts i18n/{{ locale }}.ts
-    just update-translations
-
-# Update *.ts files by traversing the source code
-[group('i18n')]
-@update-translations: _update_pyproject_file _update_lupdate_project_file
-    uv run pyside6-lupdate -locations none -project project.json
-
-# Lint QML files
-[group('lint')]
-@lint-qml: build-develop
-    uv run pyside6-project qmllint
+@clean:
+    find i18n -name "*.qm" -type f -delete
+    find qt/qml -name "*.qmlc" -type f -delete
+    rm -rf build pyobjects test/rc_project.py rc_project.py project.json project.qrc
 
 # Run Python and QML tests
 [group('test')]
 @test: _prepare-tests (test-python 'no-prep') (test-qml 'no-prep')
 
-# Run Python tests
 [group('test')]
 test-python SKIP_PREPARATION='false':
     #!/usr/bin/env bash
@@ -85,7 +79,6 @@ test-python SKIP_PREPARATION='false':
     fi
     uv run pytest build-aux test
 
-# Run QML tests
 [group('test')]
 test-qml SKIP_PREPARATION='false':
     #!/usr/bin/env bash
@@ -95,27 +88,37 @@ test-qml SKIP_PREPARATION='false':
     uv run python -c '
     import sys
     from PySide6.QtQuickTest import QUICK_TEST_MAIN_WITH_SETUP
-    from test.test_qml import MpvqcTestSetup
+    from test.prepare_qml import MpvqcTestSetup
 
     # Pass additional arguments to qmltestrunner:
     sys.argv += ["-silent"]
     sys.argv += ["-input", "qt/qml"]
+    # sys.argv += ["-eventdelay", "50"]  # Simulate slower systems
 
     ex = QUICK_TEST_MAIN_WITH_SETUP("qmltestrunner", MpvqcTestSetup, argv=sys.argv)
     sys.exit(ex)
     '
 
-# Insert dependency versions
-[group('CI')]
-@insert-dependency-versions +UPDATE_INPLACE:
-    uv --offline export \
-        --no-hashes \
-        --no-annotate \
-        --output-file requirements.txt
-    python build-aux/insert-dependency-versions.py \
-        --requirements-txt requirements.txt \
-        --update-inplace {{ UPDATE_INPLACE }}
-    rm requirements.txt
+# Lint Python files (type checker only)
+[group('lint')]
+@lint-python *ARGS:
+    uvx pyrefly@0.42.1 check --ignore missing-attribute {{ ARGS }}
+
+# Lint QML files
+[group('lint')]
+@lint-qml: build-develop
+    uv run pyside6-project qmllint
+
+# Add language 'LOCALE' e.g. 'fr-FR' (ISO 639-1, ISO 3166-1)
+[group('i18n')]
+@add-translation LOCALE: _update_pyproject_file
+    uv run pyside6-lupdate -source-language en-US -target-language {{ LOCALE }} -ts i18n/{{ LOCALE }}.ts
+    just update-translations
+
+# Update translation strings
+[group('i18n')]
+@update-translations: _update_pyproject_file _update_lupdate_project_file
+    uv run pyside6-lupdate -locations none -project project.json
 
 @_prepare-tests: build-develop
     rm -f test/rc_project.py
@@ -131,7 +134,23 @@ test-qml SKIP_PREPARATION='false':
         --include-file main.py \
         --include-file project.qrc
 
-@_generate-qrc-file:
+_generate-qrc-file:
+    #!/usr/bin/env bash
+
+    if [[ "${MPVQC_COMPILE_QML}" == "true" ]]; then
+      echo "Compiling QML files to cache..."
+      find qt/qml -name "*.qml" -not -name "tst_*.qml" -type f | while read qml_file; do
+        qmlc_file="${qml_file}c"
+        echo "  Compiling $(basename "$qml_file")..."
+        uv run pyside6-qmlcachegen --only-bytecode "$qml_file" -o "$qmlc_file" || exit 1
+      done
+      echo "  Removing .aotstats files..."
+      find qt/qml -name "*.aotstats" -type f -delete
+      echo "QML compilation complete!"
+    else
+      echo "Skipping QML cache generation. Can be enabled by setting env var MPVQC_COMPILE_QML=true"
+    fi
+
     uv run python build-aux/generate-qrc-file.py \
         --relative-to . \
         --include-directory qt/qml \
@@ -148,3 +167,40 @@ test-qml SKIP_PREPARATION='false':
         --include-file main.py \
         --include-file project.qrc \
         --out-file project.json
+
+# Update dependency versions in build-info.toml
+_update-dependency-versions:
+    #!/usr/bin/env bash
+    uv --offline export --no-hashes --no-annotate | uv run python -c '
+    import re, sys, tomllib
+    from pathlib import Path
+
+    # Parse versions from stdin
+    versions = {}
+    for line in sys.stdin:
+        line = line.strip()
+        if line and not line.startswith("#"):
+            package_spec = line.split(";")[0].strip()
+            if "==" in package_spec:
+                package, version = package_spec.split("==", 1)
+                versions[package.lower()] = version
+
+    # Update build-info.toml
+    toml_path = Path() / "data" / "build-info.toml"
+    content = toml_path.read_text()
+
+    with toml_path.open("rb") as f:
+        data = tomllib.load(f)
+
+    for dep_list in ["dependency", "dev_dependency"]:
+        for dep in data[dep_list]:
+            package_key = dep["package"].lower()
+            if package_key in versions:
+                v = versions[package_key]
+                name_escaped = re.escape(dep["name"])
+                pattern = "(name = \"" + name_escaped + "\".*?version = )\"[^\"]*\""
+                replacement = r"\1" + "\"" + v + "\""
+                content = re.sub(pattern, replacement, content, flags=re.DOTALL)
+
+    toml_path.write_text(content)
+    '

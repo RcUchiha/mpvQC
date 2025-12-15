@@ -15,18 +15,15 @@ Popup {
 
     readonly property bool isOdd: currentListIndex % 2 === 1
 
+    readonly property alias textField: _textField // for tests
+
     property int previousHeight: 0
     property bool acceptValue: true
 
     signal commentEdited(index: int, newComment: string)
-    signal commentEditPopupHeightChanged(heightDelta: int)
+    signal commentEditPopupHeightChanged(editorHeight: int, heightDelta: int)
 
     width: root.parent.width
-
-    leftPadding: root.parent.leftPadding / 2 // qmllint disable
-    rightPadding: root.parent.rightPadding / 2 // qmllint disable
-    topPadding: root.parent.topPadding / 2 // qmllint disable
-    bottomPadding: root.parent.bottomPadding / 2 // qmllint disable
 
     background: null
     dim: false
@@ -89,7 +86,7 @@ Popup {
         const heightDelta = root.height - root.previousHeight;
         if (root.previousHeight > 0) {
             // Skip first change (initialization)
-            root.commentEditPopupHeightChanged(heightDelta);
+            root.commentEditPopupHeightChanged(root.height, heightDelta);
         }
         root.previousHeight = root.height;
     }
@@ -103,13 +100,15 @@ Popup {
         }
     }
 
+    // Hide original text while editing to avoid visual duplication
     Binding {
         when: root.visible
         target: root.parent
         property: "text"
-        value: "" // don't display text below the editing popup
+        value: ""
     }
 
+    // Notify delegate of editor height so it can expand to accommodate growing content
     Binding {
         when: root.visible
         target: root.parent
