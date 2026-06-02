@@ -4,82 +4,123 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from threading import Lock
+from typing import TYPE_CHECKING, cast, override
 
 import inject
 from PySide6.QtCore import QSize, Signal, Slot
-from PySide6.QtGui import QOpenGLContext
+from PySide6.QtGui import QGuiApplication, QNativeInterface, QOpenGLContext
 from PySide6.QtQml import QmlElement
 from PySide6.QtQuick import QQuickFramebufferObject
 
-from mpvqc.services import HostIntegrationService
+from mpvqc.services import MainWindowService, PlayerService
 
 if TYPE_CHECKING:
+    from types import NoneType
+
     from mpv import MpvRenderContext
     from PySide6.QtOpenGL import QOpenGLFramebufferObject
 
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
-def get_process_address(_, name):
+def get_process_address(_: NoneType, name: bytes) -> int:
     current_gl_context = QOpenGLContext.currentContext()
     if current_gl_context:
-        return int(current_gl_context.getProcAddress(name))
+        return current_gl_context.getProcAddress(name)
     return 0
+
+
+def get_display_params() -> dict[str, int]:
+    app = QGuiApplication.instance()
+    if not isinstance(app, QGuiApplication):
+        return {}
+    native = app.nativeInterface()
+    if native is None:
+        return {}
+    match QGuiApplication.platformName():
+        case "wayland":
+            display = cast("QNativeInterface.QWaylandApplication", native).display()
+            return {"wl_display": display} if display else {}
+        case "xcb":
+            display = cast("QNativeInterface.QX11Application", native).display()
+            return {"x11_display": display} if display else {}
+        case _:
+            return {}
 
 
 @QmlElement
 class MpvqcMpvFrameBufferObjectPyObject(QQuickFramebufferObject):
-    sig_on_update = Signal()
+    _player = inject.attr(PlayerService)
 
-    def __init__(self):
+    update_requested = Signal()
+
+    def __init__(self) -> None:
         super().__init__()
-        self.sig_on_update.connect(self.do_update)
+        self._renderer: Renderer | None = None
+        self.update_requested.connect(self.do_update)
+        self._player.set_shutdown_hook(self._release)
 
     @Slot()
-    def do_update(self):
+    def do_update(self) -> None:
         self.update()
 
+    def _release(self) -> None:
+        if self._renderer is not None:
+            self._renderer.release()
+        self._player.set_shutdown_hook(None)
+
+    @override
     def createRenderer(self) -> QQuickFramebufferObject.Renderer:
-        return Renderer(self)
+        self._renderer = r = Renderer(self)
+        return r
 
 
 class Renderer(QQuickFramebufferObject.Renderer):
-    _host_integration = inject.attr(HostIntegrationService)
+    _main_window = inject.attr(MainWindowService)
+    _player = inject.attr(PlayerService)
 
-    def __init__(self, parent):
+    def __init__(self, parent: MpvqcMpvFrameBufferObjectPyObject) -> None:
         super().__init__()
         self._parent = parent
         self._ctx: MpvRenderContext | None = None
-        self._host_integration.display_zoom_factor_changed.connect(lambda _: self._parent.sig_on_update.emit())
+        self._lock = Lock()
+        self._main_window.display_zoom_factor_changed.connect(self._on_zoom_factor_changed)
 
+    def _on_zoom_factor_changed(self) -> None:
+        self._parent.update_requested.emit()
+
+    @override
     def createFramebufferObject(self, size: QSize) -> QOpenGLFramebufferObject:
         if self._ctx is None:
-            from mpv import MpvGlGetProcAddressFn, MpvRenderContext
-
-            from mpvqc.services.player import PlayerService
-
-            player = inject.instance(PlayerService)
-            player.init()
-
-            self._ctx = MpvRenderContext(
-                mpv=player.mpv,
-                api_type="opengl",
-                opengl_init_params={"get_proc_address": MpvGlGetProcAddressFn(get_process_address)},
+            self._player.init()
+            self._ctx = self._player.create_render_context(
+                get_proc_address=get_process_address,
+                display_params=get_display_params(),
             )
-            self._ctx.update_cb = self._parent.sig_on_update.emit
+            self._ctx.update_cb = self._parent.update_requested.emit
 
         return QQuickFramebufferObject.Renderer.createFramebufferObject(self, size)
 
-    def render(self):
-        if self._ctx:
-            factor: float = self._host_integration.display_zoom_factor
+    @override
+    def render(self) -> None:
+        with self._lock:
+            if self._ctx is None:
+                return
+
+            factor: float = self._main_window.display_zoom_factor
             rect = self._parent.size()
 
             width = int(rect.width() * factor)
             height = int(rect.height() * factor)
-            fbo = int(self.framebufferObject().handle())
+            fbo = self.framebufferObject().handle()
 
             self._ctx.render(flip_y=False, opengl_fbo={"w": width, "h": height, "fbo": fbo})
+
+    def release(self) -> None:
+        with self._lock:
+            if self._ctx is not None:
+                self._ctx.free()
+                self._ctx = None

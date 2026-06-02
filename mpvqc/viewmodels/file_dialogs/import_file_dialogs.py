@@ -2,37 +2,22 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from pathlib import Path
-
 import inject
-from PySide6.QtCore import Property, QObject, QRunnable, QThreadPool, QUrl, Signal, Slot
+from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
 from PySide6.QtQml import QmlElement
 
 from mpvqc.services import ImporterService, MimetypeProviderService, SettingsService, TypeMapperService
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
-class ImportJob(QRunnable):
-    _importer: ImporterService = inject.attr(ImporterService)
-
-    def __init__(self, documents: list[Path], videos: list[Path], subtitles: list[Path]):
-        super().__init__()
-        self._documents = documents
-        self._videos = videos
-        self._subtitles = subtitles
-
-    def run(self):
-        self._importer.open(self._documents, self._videos, self._subtitles)
-
-
-# noinspection PyPep8Naming,PyTypeChecker
 @QmlElement
 class MpvqcImportFileDialogViewModel(QObject):
-    _mimetype_provider: MimetypeProviderService = inject.attr(MimetypeProviderService)
-    _settings: SettingsService = inject.attr(SettingsService)
-    _type_mapper: TypeMapperService = inject.attr(TypeMapperService)
+    _importer = inject.attr(ImporterService)
+    _mimetype_provider = inject.attr(MimetypeProviderService)
+    _settings = inject.attr(SettingsService)
+    _type_mapper = inject.attr(TypeMapperService)
 
     lastDirectoryVideoChanged = Signal(QUrl)
     lastDirectoryDocumentsChanged = Signal(QUrl)
@@ -72,18 +57,12 @@ class MpvqcImportFileDialogViewModel(QObject):
 
     @Slot(QUrl)
     def openVideo(self, url: QUrl) -> None:
-        video_path = self._type_mapper.map_url_to_path(url)
-        job = ImportJob(documents=[], videos=[video_path], subtitles=[])
-        QThreadPool.globalInstance().start(job)
+        self._importer.open([], [self._type_mapper.map_url_to_path(url)], [])
 
     @Slot(list)
     def openDocuments(self, urls: list[QUrl]) -> None:
-        document_paths = self._type_mapper.map_urls_to_path(urls)
-        job = ImportJob(documents=document_paths, videos=[], subtitles=[])
-        QThreadPool.globalInstance().start(job)
+        self._importer.open(self._type_mapper.map_urls_to_path(urls), [], [])
 
     @Slot(list)
     def openSubtitles(self, urls: list[QUrl]) -> None:
-        subtitle_paths = self._type_mapper.map_urls_to_path(urls)
-        job = ImportJob(documents=[], videos=[], subtitles=subtitle_paths)
-        QThreadPool.globalInstance().start(job)
+        self._importer.open([], [], self._type_mapper.map_urls_to_path(urls))

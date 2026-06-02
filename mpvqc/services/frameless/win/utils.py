@@ -8,17 +8,17 @@
 #  - https://github.com/zhiyiYo/PyQt-Frameless-Window
 #  - https://gitee.com/Virace/pyside6-qml-frameless-window/tree/main
 
-import ctypes
-from ctypes import Structure, byref, c_int, sizeof, windll
+from ctypes import POINTER, Structure, byref, c_int, sizeof, windll  # pyrefly: ignore[missing-module-attribute]
 from ctypes.wintypes import DWORD, HWND, LONG, LPARAM, RECT, UINT
 from functools import lru_cache
+from typing import Any
 
 import win32api
 import win32con
 import win32gui
 import win32print
 from PySide6.QtCore import QOperatingSystemVersion, QVersionNumber
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication, QWindow
 
 from .c_structures import MARGINS
 
@@ -30,7 +30,7 @@ def get_window_size(hwnd) -> tuple[int, int, int, int]:
     return left, top, width, height
 
 
-def set_outer_window_size(hwnd, w, h):
+def set_outer_window_size(hwnd, w, h) -> None:
     """Hard-set the OUTER size (frame included)."""
     SWP_NOMOVE = 0x0002
     SWP_NOZORDER = 0x0004
@@ -40,7 +40,7 @@ def set_outer_window_size(hwnd, w, h):
     user32.SetWindowPos(hwnd, None, 0, 0, w, h, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE)
 
 
-def is_maximized(hwnd):
+def is_maximized(hwnd) -> bool:
     window_placement = win32gui.GetWindowPlacement(hwnd)
     if not window_placement:
         return False
@@ -48,7 +48,7 @@ def is_maximized(hwnd):
     return window_placement[1] == win32con.SW_MAXIMIZE
 
 
-def is_fullscreen(hwnd):
+def is_fullscreen(hwnd) -> bool:
     win_rect = win32gui.GetWindowRect(hwnd)
     if not win_rect:
         return False
@@ -58,16 +58,16 @@ def is_fullscreen(hwnd):
         return False
 
     monitor_rect = monitor_info["Monitor"]
-    return all(i == j for i, j in zip(win_rect, monitor_rect))
+    return all(i == j for i, j in zip(win_rect, monitor_rect))  # noqa:B905
 
 
-def is_composition_enabled():
+def is_composition_enabled() -> bool:
     b_result = c_int(0)
     windll.dwmapi.DwmIsCompositionEnabled(byref(b_result))
     return bool(b_result.value)
 
 
-def get_monitor_info(hwnd, dw_flags):
+def get_monitor_info(hwnd, dw_flags) -> Any | None:
     monitor = win32api.MonitorFromWindow(hwnd, dw_flags)
     if not monitor:
         return None
@@ -75,7 +75,7 @@ def get_monitor_info(hwnd, dw_flags):
     return win32api.GetMonitorInfo(monitor)
 
 
-def get_resize_border_thickness(hwnd, horizontal=True):
+def get_resize_border_thickness(hwnd, horizontal=True) -> int:
     window = find_window(hwnd)
     if not window:
         return 0
@@ -90,7 +90,7 @@ def get_resize_border_thickness(hwnd, horizontal=True):
     return round(thickness * window.devicePixelRatio())
 
 
-def get_system_metrics(hwnd, index, horizontal):
+def get_system_metrics(hwnd, index, horizontal) -> Any:
     if not hasattr(windll.user32, "GetSystemMetricsForDpi"):
         return win32api.GetSystemMetrics(index)
 
@@ -98,7 +98,7 @@ def get_system_metrics(hwnd, index, horizontal):
     return windll.user32.GetSystemMetricsForDpi(index, dpi)
 
 
-def get_dpi_for_window(hwnd, horizontal=True):
+def get_dpi_for_window(hwnd, horizontal=True) -> int:
     if hasattr(windll.user32, "GetDpiForWindow"):
         return windll.user32.GetDpiForWindow(hwnd)
 
@@ -117,19 +117,19 @@ def get_dpi_for_window(hwnd, horizontal=True):
     return 96
 
 
-def find_window(hwnd):
+def find_window(hwnd) -> QWindow | None:
     windows = QGuiApplication.topLevelWindows()
     if not windows:
         return None
 
     hwnd = int(hwnd)
     for window in windows:
-        if window and int(window.winId()) == hwnd:
+        if window and window.winId() == hwnd:
             return window
     return None
 
 
-def is_greater_equal_win8_1():
+def is_greater_equal_win8_1() -> bool:
     cv = QOperatingSystemVersion.current()
     cv = QVersionNumber(cv.majorVersion(), cv.minorVersion(), cv.microVersion())
     return cv >= QVersionNumber(8, 1, 0)
@@ -160,14 +160,14 @@ class Taskbar:
     ABM_GETTASKBARPOS = 5
 
     @staticmethod
-    def is_auto_hide():
+    def is_auto_hide() -> bool:
         appbar_data = APPBARDATA(sizeof(APPBARDATA), 0, 0, 0, RECT(0, 0, 0, 0), 0)
         taskbar_state = windll.shell32.SHAppBarMessage(Taskbar.ABM_GETSTATE, byref(appbar_data))
 
         return taskbar_state == Taskbar.ABS_AUTOHIDE
 
     @classmethod
-    def get_position(cls, hwnd):
+    def get_position(cls, hwnd) -> int:
         if is_greater_equal_win8_1():
             monitor_info = get_monitor_info(hwnd, win32con.MONITOR_DEFAULTTONEAREST)
             if not monitor_info:
@@ -202,21 +202,21 @@ class Taskbar:
         return cls.NO_POSITION
 
 
-dwmapi = ctypes.windll.dwmapi
+dwmapi = windll.dwmapi
 
 DwmExtendFrameIntoClientArea = dwmapi.DwmExtendFrameIntoClientArea
-DwmExtendFrameIntoClientArea.argtypes = [ctypes.wintypes.HWND, ctypes.POINTER(MARGINS)]
+DwmExtendFrameIntoClientArea.argtypes = [HWND, POINTER(MARGINS)]
 DwmExtendFrameIntoClientArea.restype = LONG
 
 
-def extend_frame_into_client_area(hwnd):
+def extend_frame_into_client_area(hwnd) -> None:
     """Enables drop shadow if 'configure_gwl_style' gets called as well for the same hwnd"""
 
     margins = MARGINS(-1, -1, -1, -1)
-    DwmExtendFrameIntoClientArea(hwnd, ctypes.byref(margins))
+    DwmExtendFrameIntoClientArea(hwnd, byref(margins))
 
 
-def configure_gwl_style(hwnd):
+def configure_gwl_style(hwnd) -> None:
     style = win32gui.GetWindowLong(hwnd, win32con.GWL_STYLE)
     win32gui.SetWindowLong(
         hwnd,
@@ -232,7 +232,7 @@ def configure_gwl_style(hwnd):
 
 
 @lru_cache(maxsize=32)
-def prevent_window_resize_for(hwnd):
+def prevent_window_resize_for(hwnd) -> None:
     style = win32gui.GetWindowLong(hwnd, win32con.GWL_STYLE)
     style &= ~win32con.WS_THICKFRAME
     win32gui.SetWindowLong(hwnd, win32con.GWL_STYLE, style)

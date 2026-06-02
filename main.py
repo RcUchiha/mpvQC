@@ -3,10 +3,13 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 
-def main():
-    import platform
+from typing import Never
 
-    if platform.system() == "Windows":
+
+def main() -> Never:
+    import sys
+
+    if sys.platform == "win32":
         _add_directory_to_path()
 
     import rc_project  # noqa: F401
@@ -15,7 +18,7 @@ def main():
     perform_startup()
 
 
-def _add_directory_to_path():
+def _add_directory_to_path() -> None:
     import os
     import sys
 

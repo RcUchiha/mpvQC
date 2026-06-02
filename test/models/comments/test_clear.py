@@ -2,95 +2,60 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import pytest
-
-from mpvqc.datamodels import Comment
-
-DEFAULT_COMMENTS = (
-    Comment(time=0, comment_type="commentType", comment="Word 1"),
-    Comment(time=5, comment_type="commentType", comment="Word 2"),
-    Comment(time=10, comment_type="commentType", comment="Word 3"),
-    Comment(time=15, comment_type="commentType", comment="Word 4"),
-    Comment(time=20, comment_type="commentType", comment="Word 5"),
-)
+from mpvqc.models.comments import NoViewAction
 
 
-@pytest.fixture
-def model(make_model):
-    # noinspection PyArgumentList
-    model, _ = make_model(
-        set_comments=DEFAULT_COMMENTS,
-        set_player_time=0,
-    )
-    return model
+def test_clear_comments(comments):
+    comments.clear_comments()
+    assert comments.rowCount() == 0
 
 
-def test_clear_comments(model):
-    model.clear_comments()
-    assert model.rowCount() == 0
+def test_clear_comments_fires_signals(comments, make_spy):
+    spy = make_spy(comments.view_action)
 
+    comments.clear_comments()
 
-def test_clear_comments_fires_signals(model, make_spy):
-    cleared_spy = make_spy(model.comments_cleared_initial)
-
-    model.clear_comments()
-
-    assert cleared_spy.count() == 1
-
-
-def test_clear_comments_undo_redo(model):
-    assert model.rowCount() == 5
-
-    model.clear_comments()
-    assert model.rowCount() == 0
-
-    model.undo()
-    assert model.rowCount() == 5
-    assert [c["comment"] for c in model.comments()] == ["Word 1", "Word 2", "Word 3", "Word 4", "Word 5"]
-
-    model.redo()
-    assert model.rowCount() == 0
-
-
-def test_clear_comments_undo_redo_invalidates_search_results(model, make_spy):
-    spy = make_spy(model.search_invalidated)
-
-    model.clear_comments()
     assert spy.count() == 1
-
-    model.undo()
-    assert spy.count() == 2
-
-    model.redo()
-    assert spy.count() == 3
+    assert spy.at(invocation=0, argument=0) == NoViewAction()
 
 
-def test_clear_comments_undo_redo_fires_signals(model, make_spy):
-    cleared_spy = make_spy(model.comments_cleared_initial)
-    cleared_undone_spy = make_spy(model.comments_cleared_undo)
+def test_clear_comments_undo_redo(comments):
+    assert comments.rowCount() == 5
 
-    model.clear_comments()
-    assert cleared_spy.count() == 1
-    assert cleared_undone_spy.count() == 0
+    comments.clear_comments()
+    assert comments.rowCount() == 0
 
-    cleared_spy.reset()
-    cleared_undone_spy.reset()
+    comments.undo()
+    assert comments.rowCount() == 5
+    assert [c["comment"] for c in comments.comments()] == ["Word 1", "Word 2", "Word 3", "Word 4", "Word 5"]
 
-    model.undo()
-    assert cleared_spy.count() == 0
-    assert cleared_undone_spy.count() == 1
-
-    cleared_spy.reset()
-    cleared_undone_spy.reset()
-
-    model.redo()
-    assert cleared_spy.count() == 1
-    assert cleared_undone_spy.count() == 0
+    comments.redo()
+    assert comments.rowCount() == 0
 
 
-def test_clear_comments_state_changes(model, state_service_mock):
-    model.clear_comments()
-    assert state_service_mock.change.call_count == 0
+def test_clear_invalidates_search(comments):
+    initial = comments.search("Word", include_current_row=True, top_down=True)
+    assert initial.total == 5
 
-    model.undo()
-    assert state_service_mock.change.call_count == 1
+    comments.clear_comments()
+
+    after = comments.search("Word", include_current_row=True, top_down=True)
+    assert after.total == 0
+
+
+def test_clear_comments_undo_redo_fires_signals(comments, make_spy):
+    spy = make_spy(comments.view_action)
+
+    comments.clear_comments()
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == NoViewAction()
+
+    spy.reset()
+    comments.undo()
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == NoViewAction()
+
+    spy.reset()
+    comments.redo()
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == NoViewAction()

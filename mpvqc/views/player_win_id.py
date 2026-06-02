@@ -9,23 +9,18 @@ from PySide6.QtQml import QmlElement
 
 from mpvqc.services import FramelessWindowService, PlayerService
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
-# noinspection PyUnresolvedReferences
 @QmlElement
 class MpvWindowPyObject(QWindow):
-    _player: PlayerService = inject.attr(PlayerService)
-    _frameless_window: FramelessWindowService = inject.attr(FramelessWindowService)
+    _player = inject.attr(PlayerService)
+    _frameless_window = inject.attr(FramelessWindowService)
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.setFlags(
-            Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowDoesNotAcceptFocus
-            | Qt.WindowType.WindowTransparentForInput
-        )
+        self.setFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowTransparentForInput)
         win_id = self.winId()
         self._player.init(win_id=win_id)
         self._frameless_window.set_embedded_player_hwnd(win_id)

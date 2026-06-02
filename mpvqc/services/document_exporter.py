@@ -2,37 +2,41 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 import inject
-from PySide6.QtCore import QCoreApplication, QDateTime, QLocale, QObject, QStandardPaths, Signal
-from PySide6.QtGui import QStandardItemModel
+from PySide6.QtCore import QCoreApplication, QDateTime, QObject, QStandardPaths, Signal
 
 from .application_paths import ApplicationPathsService
 from .build_info import BuildInfoService
+from .comments import CommentsService
 from .formatter_time import TimeFormatterService
 from .player import PlayerService
 from .resource import ResourceService
 from .settings import SettingsService
 
+logger = logging.getLogger(__name__)
+
 
 class DocumentRenderService:
-    _player: PlayerService = inject.attr(PlayerService)
-    _settings: SettingsService = inject.attr(SettingsService)
-    _build_info: BuildInfoService = inject.attr(BuildInfoService)
+    _player = inject.attr(PlayerService)
+    _settings = inject.attr(SettingsService)
+    _build_info = inject.attr(BuildInfoService)
+    _comments_service = inject.attr(CommentsService)
 
     class Filters:
-        _time_formatter: TimeFormatterService = inject.attr(TimeFormatterService)
+        _time_formatter = inject.attr(TimeFormatterService)
 
-        def as_time(self, seconds: int):
+        def as_time(self, seconds: int) -> str:
             return self._time_formatter.format_time_to_string(seconds, long_format=True)
 
         @staticmethod
-        def as_comment_type(comment_type: str):
+        def as_comment_type(comment_type: str) -> str:
             return QCoreApplication.translate("CommentTypes", comment_type)
 
-    def __init__(self):
+    def __init__(self) -> None:
         from jinja2 import BaseLoader, Environment
 
         self._env = Environment(loader=BaseLoader(), keep_trailing_newline=True)  # noqa: S701
@@ -42,54 +46,42 @@ class DocumentRenderService:
 
     @property
     def _arguments(self) -> dict:
-        write_date = self._settings.write_header_date
-        write_generator = self._settings.write_header_generator
-        write_video_path = self._settings.write_header_video_path
-        write_nickname = self._settings.write_header_nickname
-        write_subtitle_paths = self._settings.write_header_subtitles
-
-        date = QLocale(self._settings.language).toString(QDateTime.currentDateTime(), QLocale.FormatType.LongFormat)
-        comments = QCoreApplication.instance().find_object(QStandardItemModel, "mpvqcCommentModel").comments()
-        generator = f"{self._build_info.name} {self._build_info.version}"
-        nickname = self._settings.nickname
-        subtitles = [str(sub) for sub in self._player.external_subtitles]
-
-        if (path := self._player.path) is not None:
-            path = Path(path)
-            video_path = str(path)  # use platform specific path separators
-            video_name = f"{path.name}"
+        if raw_path := self._player.path:
+            path = Path(raw_path)
+            video_path = str(path)  # use platform-specific path separators
+            video_name = path.name
         else:
             video_path = ""
             video_name = ""
 
         return {
-            "write_date": write_date,
-            "write_generator": write_generator,
-            "write_nickname": write_nickname,
-            "write_video_path": write_video_path,
-            "write_subtitle_paths": write_subtitle_paths,
-            "date": date,
-            "generator": generator,
-            "nickname": nickname,
+            "write_date": self._settings.write_header_date,
+            "write_generator": self._settings.write_header_generator,
+            "write_nickname": self._settings.write_header_nickname,
+            "write_video_path": self._settings.write_header_video_path,
+            "write_subtitle_paths": self._settings.write_header_subtitles,
+            "date": QDateTime.currentDateTime().toString("yyyy-MM-dd HH:mm"),
+            "generator": f"{self._build_info.name} {self._build_info.version}",
+            "nickname": self._settings.nickname,
             "video_path": video_path,
             "video_name": video_name,
-            "subtitles": subtitles,
-            "comments": comments,
+            "subtitles": self._player.external_subtitles,
+            "comments": self._comments_service.comments(),
         }
 
-    def render(self, template: str):
+    def render(self, template: str) -> str:
         return self._env.from_string(template).render(**self._arguments)
 
 
 class DocumentBackupService:
-    _paths: ApplicationPathsService = inject.attr(ApplicationPathsService)
-    _player: PlayerService = inject.attr(PlayerService)
-    _renderer: DocumentRenderService = inject.attr(DocumentRenderService)
-    _resources: ResourceService = inject.attr(ResourceService)
+    _paths = inject.attr(ApplicationPathsService)
+    _player = inject.attr(PlayerService)
+    _renderer = inject.attr(DocumentRenderService)
+    _resources = inject.attr(ResourceService)
 
     @property
     def _video_name(self) -> str:
-        if (path := self._player.path) is not None:
+        if path := self._player.path:
             return Path(path).name
         #: Will be used in the file name proposal when saving a qc document when there's no video being loaded
         return QCoreApplication.translate("FileInteractionDialogs", "untitled")
@@ -110,16 +102,16 @@ class DocumentBackupService:
 
 
 class DocumentExportService(QObject):
-    _player: PlayerService = inject.attr(PlayerService)
-    _renderer: DocumentRenderService = inject.attr(DocumentRenderService)
-    _settings: SettingsService = inject.attr(SettingsService)
-    _resources: ResourceService = inject.attr(ResourceService)
+    _player = inject.attr(PlayerService)
+    _renderer = inject.attr(DocumentRenderService)
+    _settings = inject.attr(SettingsService)
+    _resources = inject.attr(ResourceService)
 
     export_error_occurred = Signal(str, int)
 
     def generate_file_path_proposal(self) -> Path:
-        if (path := self._player.path) is not None:
-            path = Path(path)
+        if raw_path := self._player.path:
+            path = Path(raw_path)
             video_directory = str(path.parent)
             video_name = path.stem
         else:
@@ -136,7 +128,12 @@ class DocumentExportService(QObject):
     def export(self, file: Path, template: Path) -> None:
         from jinja2 import TemplateError, TemplateSyntaxError
 
-        user_template = template.read_text(encoding="utf-8")
+        try:
+            user_template = template.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            logger.exception("Failed to read export template %s", template)
+            self.export_error_occurred.emit(self._template_read_error(), -1)
+            return
 
         try:
             content = self._renderer.render(user_template)
@@ -145,9 +142,29 @@ class DocumentExportService(QObject):
             self.export_error_occurred.emit(e.message, e.lineno)
         except TemplateError as e:
             self.export_error_occurred.emit(e.message, -1)
+        except OSError:
+            logger.exception("Failed to write export to %s", file)
+            self.export_error_occurred.emit(self._document_save_error(), -1)
 
     def save(self, file: Path) -> None:
         export_template = self._resources.default_export_template
         content = self._renderer.render(export_template)
 
-        file.write_text(content, encoding="utf-8", newline="\n")
+        try:
+            file.write_text(content, encoding="utf-8", newline="\n")
+        except OSError:
+            logger.exception("Failed to save document to %s", file)
+            self.export_error_occurred.emit(self._document_save_error(), -1)
+
+    @staticmethod
+    def _template_read_error() -> str:
+        #: Shown when a user-supplied export template cannot be read (file gone,
+        #: permission denied, or not valid UTF-8). The technical detail is logged,
+        #: not surfaced to the user.
+        return QCoreApplication.translate("MessageBoxes", "The export template could not be read.")
+
+    @staticmethod
+    def _document_save_error() -> str:
+        #: Shown when writing the QC document fails (permission denied, disk full,
+        #: target directory missing). The technical detail is logged, not surfaced.
+        return QCoreApplication.translate("MessageBoxes", "The document could not be saved.")

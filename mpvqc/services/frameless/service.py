@@ -4,13 +4,9 @@
 
 from __future__ import annotations
 
-import platform
+import sys
 from abc import ABC, abstractmethod
-from typing import TYPE_CHECKING
-
-import inject
-
-from ..host_integration import HostIntegrationService  # noqa: TID252
+from typing import TYPE_CHECKING, override
 
 if TYPE_CHECKING:
     from PySide6.QtGui import QGuiApplication, QWindow
@@ -29,13 +25,12 @@ class FramelessWindowService(ABC):
 
 
 class WinImplementation(FramelessWindowService):
-    host_integration: HostIntegrationService = inject.attr(HostIntegrationService)
-
-    def __init__(self):
+    def __init__(self) -> None:
         from mpvqc.services.frameless.win import WindowsEventFilter
 
         self._event_filter = WindowsEventFilter()
 
+    @override
     def configure_for(self, app: QGuiApplication, window: QWindow) -> None:
         hwnd_top_lvl = window.winId()
         self._event_filter.set_top_lvl_hwnd(hwnd_top_lvl)
@@ -50,31 +45,35 @@ class WinImplementation(FramelessWindowService):
         extend_frame_into_client_area(hwnd_top_lvl)
         configure_gwl_style(hwnd_top_lvl)
 
-        width = int(1280 * self.host_integration.display_zoom_factor)
-        height = int(720 * self.host_integration.display_zoom_factor)
+        zoom = window.devicePixelRatio()
+        width = int(1280 * zoom)
+        height = int(720 * zoom)
         set_outer_window_size(hwnd_top_lvl, width, height)
 
+    @override
     def set_embedded_player_hwnd(self, win_id: int) -> None:
         self._event_filter.set_embedded_player_hwnd(win_id)
 
 
 class LinuxImplementation(FramelessWindowService):
+    @override
     def configure_for(self, app: QGuiApplication, window: QWindow) -> None:
         from mpvqc.services.frameless.linux import LinuxEventFilter
 
         self._event_filter = LinuxEventFilter(window, app)
         app.installEventFilter(self._event_filter)
 
+    @override
     def set_embedded_player_hwnd(self, win_id: int) -> None:
         pass
 
 
 def get_frameless_window_service() -> FramelessWindowService:
-    match platform.system():
-        case "Windows":
+    match sys.platform:
+        case "win32":
             return WinImplementation()
-        case "Linux":
+        case "linux":
             return LinuxImplementation()
-        case system:
-            msg = f"Cannot configure frameless window on platform: {system}"
-            raise ValueError(msg)
+
+    msg = f"Cannot configure frameless window on platform: {sys.platform}"
+    raise ValueError(msg)

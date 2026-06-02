@@ -25,7 +25,7 @@
     </message>
     <message>
         <source>Copy version info to clipboard</source>
-        <translation type="unfinished"></translation>
+        <translation>Copiar la información de la versión al portapapeles</translation>
     </message>
     <message>
         <source>Made by</source>
@@ -37,7 +37,7 @@
     </message>
     <message>
         <source>Powered by Python %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Impulsado por Python %1</translation>
     </message>
     <message>
         <source>Development</source>
@@ -174,11 +174,6 @@
         <source>Characters &apos;{}&apos; not allowed</source>
         <translation>Caracteres &apos;{}&apos; no permitidos</translation>
     </message>
-    <message>
-        <source>Edit &quot;%1&quot;</source>
-        <extracomment>%1 will be the comment type being edited</extracomment>
-        <translation>Editar &quot;%1&quot;</translation>
-    </message>
 </context>
 <context>
     <name>ExportSettingsDialog</name>
@@ -238,7 +233,7 @@
     </message>
     <message>
         <source>Subtitle files</source>
-        <translation>Archivo de subtítulos</translation>
+        <translation>Archivos de subtítulos</translation>
     </message>
     <message>
         <source>Open QC Document(s)</source>
@@ -262,49 +257,6 @@
     </message>
 </context>
 <context>
-    <name>ImportConfirmationDialog</name>
-    <message>
-        <source>Confirm Import</source>
-        <extracomment>Dialog title for confirming which videos and subtitles to import</extracomment>
-        <translation>Confirmar importación</translation>
-    </message>
-    <message>
-        <source>Videos</source>
-        <extracomment>Section header for video selection list</extracomment>
-        <translation>Videos</translation>
-    </message>
-    <message>
-        <source>Skip video</source>
-        <extracomment>Option to import without selecting any video</extracomment>
-        <translation>Omitir video</translation>
-    </message>
-    <message>
-        <source>From QC document</source>
-        <extracomment>Tooltip indicating the video file was referenced in one of the imported documents</extracomment>
-        <translation>Del documento de QC</translation>
-    </message>
-    <message>
-        <source>From subtitle</source>
-        <extracomment>Tooltip indicating the video file was referenced in one of the imported subtitles</extracomment>
-        <translation>Del subtítulo</translation>
-    </message>
-    <message>
-        <source>Subtitles</source>
-        <extracomment>Section header for subtitle selection list</extracomment>
-        <translation>Subtítulos</translation>
-    </message>
-    <message>
-        <source>Select All</source>
-        <extracomment>Button to select all subtitles in the list</extracomment>
-        <translation>Seleccionar todo</translation>
-    </message>
-    <message>
-        <source>Deselect All</source>
-        <extracomment>Button to deselect all subtitles in the list</extracomment>
-        <translation>Deseleccionar todo</translation>
-    </message>
-</context>
-<context>
     <name>ImportSettingsDialog</name>
     <message>
         <source>Import Settings</source>
@@ -325,6 +277,124 @@
     <message>
         <source>Never</source>
         <translation>Nunca</translation>
+    </message>
+</context>
+<context>
+    <name>ImportWizardDialog</name>
+    <message>
+        <source>Back</source>
+        <extracomment>Button that returns the import wizard to the previous step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel import</source>
+        <extracomment>Button that aborts the import wizard and discards any parsed comments</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <extracomment>Primary button when the wizard only lists unreadable documents</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm import</source>
+        <extracomment>Primary button finalizing the import on the last wizard step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm</source>
+        <extracomment>Primary button on the last step when nothing valid has been resolved yet</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Errors</source>
+        <extracomment>Step indicator label for the errors step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Session</source>
+        <extracomment>Step indicator label for the session step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video</source>
+        <extracomment>Step indicator label for the video step</extracomment>
+        <translation type="unfinished">Video</translation>
+    </message>
+    <message>
+        <source>Subtitles</source>
+        <extracomment>Step indicator label for the subtitles step</extracomment>
+        <translation type="unfinished">Subtítulos</translation>
+    </message>
+    <message>
+        <source>Next</source>
+        <extracomment>Primary button advancing to the next wizard step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm Import</source>
+        <extracomment>Title of the import wizard dialog</extracomment>
+        <translation type="unfinished">Confirmar importación</translation>
+    </message>
+    <message>
+        <source>Import Error</source>
+        <extracomment>Title of the import wizard dialog when no valid content can be imported</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>You&apos;re about to import &lt;b&gt;%Ln&lt;/b&gt; comment(s) into your current session. What do you want to do?</source>
+        <extracomment>Session step header: states the incoming comment count and asks how to proceed (%Ln is the count)</extracomment>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Add to your current comments</source>
+        <extracomment>Merge option label — keeps the existing comments and appends the incoming ones</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start fresh with the new comments</source>
+        <extracomment>Replace option label — discards the existing comments before importing the incoming ones</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Which video should be loaded?</source>
+        <extracomment>Video step prompt above the candidate list</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skip video</source>
+        <translation type="unfinished">Omitir video</translation>
+    </message>
+    <message>
+        <source>Referenced by an imported QC document</source>
+        <extracomment>Tooltip on the per-row icon — the candidate video is referenced by one of the QC documents being imported</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Referenced by an imported subtitle file</source>
+        <extracomment>Tooltip on the per-row icon — the candidate video is referenced by one of the subtitle files being imported</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Which subtitles should be loaded?</source>
+        <extracomment>Subtitles step prompt above the subtitles list</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select all</source>
+        <extracomment>Tri-state &quot;Select all&quot; checkbox in the subtitles step header</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%Ln incompatible QC document(s):</source>
+        <extracomment>Header above the list of QC documents whose format the importer rejected</extracomment>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -487,6 +557,10 @@
         <translation>Atajos de teclado...</translation>
     </message>
     <message>
+        <source>Open App Data Folder...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>About mpvQC...</source>
         <translation>Acerca de mpvQC...</translation>
     </message>
@@ -559,14 +633,6 @@
         <translation>¿Seguro que quieres crear un nuevo documento de QC sin guardar tu QC?</translation>
     </message>
     <message>
-        <source>Video Found</source>
-        <translation type="vanished">Video encontrado</translation>
-    </message>
-    <message>
-        <source>A video was found. Do you want to open it?</source>
-        <translation type="vanished">Se encontró un video. ¿Quieres abrirlo?</translation>
-    </message>
-    <message>
         <source>Delete Comment</source>
         <translation>Borrar comentario</translation>
     </message>
@@ -577,14 +643,7 @@
     <message>
         <source>No text available</source>
         <extracomment>This is displayed as a fallback in the delete confirmation box when the actual comment is empty.</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>Document Not Compatible</source>
-        <translation>
-            <numerusform>Documento no compatible</numerusform>
-            <numerusform>Documentos no compatibles</numerusform>
-        </translation>
+        <translation>No hay texto disponible</translation>
     </message>
     <message>
         <source>Export Error</source>
@@ -612,6 +671,16 @@
         <source>Loading...</source>
         <translation>Cargando...</translation>
     </message>
+    <message>
+        <source>The export template could not be read.</source>
+        <extracomment>Shown when a user-supplied export template cannot be read (file gone, permission denied, or not valid UTF-8). The technical detail is logged, not surfaced to the user.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document could not be saved.</source>
+        <extracomment>Shown when writing the QC document fails (permission denied, disk full, target directory missing). The technical detail is logged, not surfaced.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>MpvConfEditDialog</name>
@@ -637,7 +706,7 @@
     <message>
         <source>Search</source>
         <extracomment>Placeholder text for search entry</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Buscar</translation>
     </message>
     <message>
         <source>Open QC Document(s)</source>
@@ -701,11 +770,11 @@
     </message>
     <message>
         <source>Toggle Fullscreen</source>
-        <translation>Alternar pantalla completa</translation>
+        <translation>Activar/desactivar pantalla completa</translation>
     </message>
     <message>
         <source>Toggle Play/Pause</source>
-        <translation>Reproducir/Pausar</translation>
+        <translation>Reproducir/pausar</translation>
     </message>
     <message>
         <source>Seek Backward by 2 Seconds</source>
@@ -733,7 +802,7 @@
     </message>
     <message>
         <source>Toggle Mute</source>
-        <translation>Silenciar/Activar sonido</translation>
+        <translation>Silenciar/activar sonido</translation>
     </message>
     <message>
         <source>Frame Step Backward</source>
@@ -785,22 +854,22 @@
     <message>
         <source>Frame Step Backward (%1)</source>
         <extracomment>Tooltip for &apos;Frame Step Backward&apos;, %1 will be the default shortcut button identifier</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Retroceder un fotograma (%1)</translation>
     </message>
     <message>
         <source>Frame Step Forward (%1)</source>
         <extracomment>Tooltip for &apos;Frame Step Forward&apos;, %1 will be the default shortcut button identifier</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Avanzar un fotograma (%1)</translation>
     </message>
     <message>
         <source>Cycle Subtitle Track (%1)</source>
         <extracomment>Tooltip for &apos;Cycle Subtitle Track&apos;, %1 will be the default shortcut button identifier</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Cambiar pista de subtítulos (%1)</translation>
     </message>
     <message>
         <source>Cycle Audio Track (%1)</source>
         <extracomment>Tooltip for &apos;Cycle Audio Track&apos;, %1 will be the default shortcut button identifier</extracomment>
-        <translation type="unfinished"></translation>
+        <translation>Cambiar pista de audio (%1)</translation>
     </message>
 </context>
 <context>
@@ -815,7 +884,7 @@
     </message>
     <message>
         <source>Server Not Reachable</source>
-        <translation>Servidor no localizado</translation>
+        <translation>Servidor inaccesible</translation>
     </message>
     <message>
         <source>A connection to the server could not be established.</source>
@@ -827,7 +896,7 @@
     </message>
     <message>
         <source>The server returned error code {}.</source>
-        <translation>El servidor arrojó el código de error {}.</translation>
+        <translation>El servidor devolvió el código de error {}.</translation>
     </message>
     <message>
         <source>There is a new version of mpvQC available ({}). Visit {} to download it.</source>

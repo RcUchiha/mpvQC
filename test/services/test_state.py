@@ -3,19 +3,10 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from pathlib import Path
-from typing import NamedTuple
 
 import pytest
 
-from mpvqc.services.state import (
-    CHANGE_ACTION,
-    RESET_ACTION,
-    ApplicationState,
-    ImportAction,
-    ImportChange,
-    SaveAction,
-    reduce,
-)
+from mpvqc.services.state import ApplicationState, StateService
 
 
 @pytest.fixture(autouse=True)
@@ -23,348 +14,74 @@ def configure_injections(common_bindings_with):
     common_bindings_with()
 
 
-def initial_state(video: Path | None = None) -> ApplicationState:
-    return ApplicationState(None, video, True)
+def _make(state: ApplicationState) -> StateService:
+    service = StateService()
+    service._state = state
+    return service
 
 
-class ImportChangeTestCase(NamedTuple):
-    name: str
-    documents: list[Path]
-    video: Path | None
-    expected_only_video: bool
-    expected_exactly_one_doc: bool
+def test_record_save_sets_document_and_marks_saved() -> None:
+    service = _make(ApplicationState(document=None, saved=False))
+
+    service.record_save(Path("document"))
+
+    assert service.document == Path("document")
+    assert service.saved is True
 
 
-IMPORT_CHANGE_TEST_CASES = [
-    ImportChangeTestCase(
-        name="no documents, no video",
-        documents=[],
-        video=None,
-        expected_only_video=False,
-        expected_exactly_one_doc=False,
-    ),
-    ImportChangeTestCase(
-        name="one document, no video",
-        documents=[Path("document")],
-        video=None,
-        expected_only_video=False,
-        expected_exactly_one_doc=True,
-    ),
-    ImportChangeTestCase(
-        name="multiple documents, no video",
-        documents=[Path("document1"), Path("document2")],
-        video=None,
-        expected_only_video=False,
-        expected_exactly_one_doc=False,
-    ),
-    ImportChangeTestCase(
-        name="no documents, with video",
-        documents=[],
-        video=Path("video"),
-        expected_only_video=True,
-        expected_exactly_one_doc=False,
-    ),
-    ImportChangeTestCase(
-        name="one document, with video",
-        documents=[Path("document")],
-        video=Path("video"),
-        expected_only_video=False,
-        expected_exactly_one_doc=True,
-    ),
-    ImportChangeTestCase(
-        name="multiple documents, with video",
-        documents=[Path("document1"), Path("document2")],
-        video=Path("video"),
-        expected_only_video=False,
-        expected_exactly_one_doc=False,
-    ),
-]
+def test_record_change_marks_unsaved() -> None:
+    service = _make(ApplicationState(document=Path("document"), saved=True))
+
+    service.record_change()
+
+    assert service.saved is False
+    assert service.document == Path("document")
 
 
-@pytest.mark.parametrize("case", IMPORT_CHANGE_TEST_CASES, ids=lambda case: case.name)
-def test_import_change(case: ImportChangeTestCase) -> None:
-    change = ImportChange(documents=case.documents, video=case.video, video_from_subtitle=True)
-    assert change.only_video_imported == case.expected_only_video
-    assert change.exactly_one_document_imported == case.expected_exactly_one_doc
+def test_record_reset_clears_document_and_marks_saved() -> None:
+    service = _make(ApplicationState(document=Path("document"), saved=False))
 
-    if case.expected_exactly_one_doc:
-        assert change.imported_document == case.documents[0]
+    service.record_reset()
 
-
-class SaveActionTestCase(NamedTuple):
-    name: str
-    initial_document: Path | None
-    initial_video: Path | None
-    initial_saved: bool
-    save_document: Path
-    expected_video: Path | None
-    expected_saved: bool
+    assert service.document is None
+    assert service.saved is True
 
 
-SAVE_ACTION_TEST_CASES = [
-    SaveActionTestCase(
-        name="save to initial state with no video",
-        initial_document=None,
-        initial_video=None,
-        initial_saved=True,
-        save_document=Path("document"),
-        expected_video=None,
-        expected_saved=True,
-    ),
-    SaveActionTestCase(
-        name="save with existing video and document",
-        initial_document=Path("document"),
-        initial_video=Path("video"),
-        initial_saved=False,
-        save_document=Path("new-document"),
-        expected_video=Path("video"),
-        expected_saved=True,
-    ),
-]
+def test_record_import_clears_document_and_marks_unsaved() -> None:
+    service = _make(ApplicationState(document=Path("document"), saved=True))
+
+    service.record_import()
+
+    assert service.document is None
+    assert service.saved is False
 
 
-@pytest.mark.parametrize("case", SAVE_ACTION_TEST_CASES, ids=lambda case: case.name)
-def test_reduce_save_action(case: SaveActionTestCase) -> None:
-    state = ApplicationState(case.initial_document, case.initial_video, case.initial_saved)
-    state = reduce(state, SaveAction(case.save_document))
-    assert case.save_document == state.document
-    assert case.expected_video == state.video
-    assert case.expected_saved == state.saved
+def test_saved_changed_signal_emits_only_on_transition() -> None:
+    service = StateService()
+    received: list[bool] = []
+    service.saved_changed.connect(received.append)
+
+    service.record_change()
+    service.record_change()
+    service.record_save(Path("document"))
+    service.record_save(Path("document2"))
+    service.record_change()
+    service.record_reset()
+
+    assert received == [False, True, False, True]
 
 
-class ChangeActionTestCase(NamedTuple):
-    name: str
-    initial_document: Path | None
-    initial_video: Path | None
-    initial_saved: bool
-    expected_document: Path | None
-    expected_video: Path | None
+def test_has_unsaved_document_signal_emits_only_on_transition() -> None:
+    service = StateService()
+    received: list[bool] = []
+    service.has_unsaved_document_changed.connect(received.append)
 
+    service.record_import()  # unsaved, no doc → False stays False
+    service.record_save(Path("doc"))  # saved → False stays False
+    service.record_change()  # unsaved with doc → True
+    service.record_change()  # idempotent
+    service.record_save(Path("doc"))  # saved again → False
+    service.record_change()  # True
+    service.record_import()  # clears doc → False
 
-CHANGE_ACTION_TEST_CASES = [
-    ChangeActionTestCase(
-        name="change from initial state",
-        initial_document=None,
-        initial_video=None,
-        initial_saved=True,
-        expected_document=None,
-        expected_video=None,
-    ),
-    ChangeActionTestCase(
-        name="change with existing video and document",
-        initial_document=Path("document"),
-        initial_video=Path("video"),
-        initial_saved=False,
-        expected_document=Path("document"),
-        expected_video=Path("video"),
-    ),
-]
-
-
-@pytest.mark.parametrize("case", CHANGE_ACTION_TEST_CASES, ids=lambda case: case.name)
-def test_reduce_change_action(case: ChangeActionTestCase) -> None:
-    state = ApplicationState(case.initial_document, case.initial_video, case.initial_saved)
-    state = reduce(state, CHANGE_ACTION)
-    assert case.expected_document == state.document
-    assert case.expected_video == state.video
-    assert not state.saved
-
-
-class ResetActionTestCase(NamedTuple):
-    name: str
-    initial_document: Path | None
-    initial_video: Path | None
-    initial_saved: bool
-    expected_video: Path | None
-
-
-RESET_ACTION_TEST_CASES = [
-    ResetActionTestCase(
-        name="reset from initial state",
-        initial_document=None,
-        initial_video=None,
-        initial_saved=True,
-        expected_video=None,
-    ),
-    ResetActionTestCase(
-        name="reset with existing video and document",
-        initial_document=Path("document"),
-        initial_video=Path("video"),
-        initial_saved=False,
-        expected_video=Path("video"),
-    ),
-]
-
-
-@pytest.mark.parametrize("case", RESET_ACTION_TEST_CASES, ids=lambda case: case.name)
-def test_reduce_reset_action(case: ResetActionTestCase) -> None:
-    state = ApplicationState(case.initial_document, case.initial_video, case.initial_saved)
-    state = reduce(state, RESET_ACTION)
-    assert state.saved
-    assert case.expected_video == state.video
-    assert state.document is None
-
-
-class ImportActionTestCase(NamedTuple):
-    name: str
-    initial_document: Path | None
-    initial_video: Path | None
-    initial_saved: bool
-    import_documents: list[Path]
-    import_video: Path | None
-    video_from_subtitle: bool
-    expected_document: Path | None
-    expected_video: Path | None
-    expected_document: Path | None
-    expected_video: Path | None
-    expected_saved: bool
-
-
-IMPORT_ACTION_TEST_CASES = [
-    ImportActionTestCase(
-        name="from initial state: import video only",
-        initial_document=None,
-        initial_video=None,
-        initial_saved=True,
-        import_documents=[],
-        import_video=Path("video"),
-        video_from_subtitle=False,
-        expected_document=None,
-        expected_video=Path("video"),
-        expected_saved=True,
-    ),
-    ImportActionTestCase(
-        name="from initial state: import different video",
-        initial_document=None,
-        initial_video=Path("video-initial"),
-        initial_saved=True,
-        import_documents=[],
-        import_video=Path("video-imported"),
-        video_from_subtitle=False,
-        expected_document=None,
-        expected_video=Path("video-imported"),
-        expected_saved=True,
-    ),
-    ImportActionTestCase(
-        name="from initial state: import one document with video from document",
-        initial_document=None,
-        initial_video=Path("video-initial"),
-        initial_saved=True,
-        import_documents=[Path("document")],
-        import_video=Path("video-imported"),
-        video_from_subtitle=False,
-        expected_document=Path("document"),
-        expected_video=Path("video-imported"),
-        expected_saved=True,
-    ),
-    ImportActionTestCase(
-        name="from initial state: import one document with video from subtitle",
-        initial_document=None,
-        initial_video=None,
-        initial_saved=True,
-        import_documents=[Path("document")],
-        import_video=Path("video-imported"),
-        video_from_subtitle=True,
-        expected_document=None,
-        expected_video=Path("video-imported"),
-        expected_saved=True,
-    ),
-    ImportActionTestCase(
-        name="from initial state: import multiple documents without video",
-        initial_document=None,
-        initial_video=Path("video-initial"),
-        initial_saved=True,
-        import_documents=[Path("document1"), Path("document2")],
-        import_video=None,
-        video_from_subtitle=False,
-        expected_document=None,
-        expected_video=Path("video-initial"),
-        expected_saved=False,
-    ),
-    ImportActionTestCase(
-        name="from initial state: import multiple documents with video from subtitle",
-        initial_document=None,
-        initial_video=None,
-        initial_saved=True,
-        import_documents=[Path("document1"), Path("document2")],
-        import_video=Path("video-imported"),
-        video_from_subtitle=True,
-        expected_document=None,
-        expected_video=Path("video-imported"),
-        expected_saved=False,
-    ),
-    ImportActionTestCase(
-        name="from other state: import same video, no document, should preserve state",
-        initial_document=None,
-        initial_video=Path("video"),
-        initial_saved=True,
-        import_documents=[],
-        import_video=Path("video"),
-        video_from_subtitle=False,
-        expected_document=None,
-        expected_video=Path("video"),
-        expected_saved=True,
-    ),
-    ImportActionTestCase(
-        name="from other state: import same video with document, should preserve document",
-        initial_document=Path("document"),
-        initial_video=Path("video"),
-        initial_saved=False,
-        import_documents=[],
-        import_video=Path("video"),
-        video_from_subtitle=False,
-        expected_document=Path("document"),
-        expected_video=Path("video"),
-        expected_saved=False,
-    ),
-    ImportActionTestCase(
-        name="from other state: import different video, should reset",
-        initial_document=Path("document"),
-        initial_video=Path("video-initial"),
-        initial_saved=True,
-        import_documents=[],
-        import_video=Path("video-imported"),
-        video_from_subtitle=False,
-        expected_document=None,
-        expected_video=Path("video-imported"),
-        expected_saved=False,
-    ),
-    ImportActionTestCase(
-        name="from other state: import document with different video from document, should reset",
-        initial_document=Path("document"),
-        initial_video=Path("video-1"),
-        initial_saved=True,
-        import_documents=[Path("imported-document")],
-        import_video=Path("video-2"),
-        video_from_subtitle=False,
-        expected_document=None,
-        expected_video=Path("video-2"),
-        expected_saved=False,
-    ),
-    ImportActionTestCase(
-        name="from other state: import document with different video from subtitle, should reset",
-        initial_document=Path("document"),
-        initial_video=Path("video-1"),
-        initial_saved=True,
-        import_documents=[Path("imported-document")],
-        import_video=Path("video-2"),
-        video_from_subtitle=True,
-        expected_document=None,
-        expected_video=Path("video-2"),
-        expected_saved=False,
-    ),
-]
-
-
-@pytest.mark.parametrize("case", IMPORT_ACTION_TEST_CASES, ids=lambda case: case.name)
-def test_reduce_import_action(case: ImportActionTestCase) -> None:
-    state = ApplicationState(case.initial_document, case.initial_video, case.initial_saved)
-    change = ImportChange(
-        documents=case.import_documents,
-        video=case.import_video,
-        video_from_subtitle=case.video_from_subtitle,
-    )
-    state = reduce(state, ImportAction(change))
-    assert case.expected_document == state.document
-    assert case.expected_video == state.video
-    assert case.expected_saved == state.saved
+    assert received == [True, False, True, False]

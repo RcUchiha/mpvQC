@@ -11,13 +11,13 @@ import pytest
 class ExternalSubtitleTestCase:
     description: str
     track_list_data: list[dict]
-    expected_paths: list[Path]
+    expected_paths: tuple[str, ...]
 
 
 SUBTITLE_DIR = Path.home() / "subtitles"
-SUB_1 = SUBTITLE_DIR / "subtitle1.srt"
-SUB_2 = SUBTITLE_DIR / "subtitle2.vtt"
-SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
+SUB_1 = str(SUBTITLE_DIR / "subtitle1.srt")
+SUB_2 = str(SUBTITLE_DIR / "subtitle2.vtt")
+SUB_3 = str(SUBTITLE_DIR / "subtitle3.ass")
 
 
 @pytest.mark.parametrize(
@@ -26,7 +26,7 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
         ExternalSubtitleTestCase(
             description="no_subtitles",
             track_list_data=[],
-            expected_paths=[],
+            expected_paths=(),
         ),
         ExternalSubtitleTestCase(
             description="single_external_subtitle",
@@ -34,10 +34,10 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_1),
+                    "external-filename": SUB_1,
                 },
             ],
-            expected_paths=[SUB_1],
+            expected_paths=(SUB_1,),
         ),
         ExternalSubtitleTestCase(
             description="multiple_external_subtitles",
@@ -45,20 +45,20 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_2),
+                    "external-filename": SUB_2,
                 },
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_1),
+                    "external-filename": SUB_1,
                 },
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_3),
+                    "external-filename": SUB_3,
                 },
             ],
-            expected_paths=[SUB_1, SUB_2, SUB_3],
+            expected_paths=(SUB_1, SUB_2, SUB_3),
         ),
         ExternalSubtitleTestCase(
             description="mixed_external_and_internal_subtitles",
@@ -66,7 +66,7 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_1),
+                    "external-filename": SUB_1,
                 },
                 {
                     "type": "sub",
@@ -76,10 +76,10 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_2),
+                    "external-filename": SUB_2,
                 },
             ],
-            expected_paths=[SUB_1, SUB_2],
+            expected_paths=(SUB_1, SUB_2),
         ),
         ExternalSubtitleTestCase(
             description="mixed_subtitle_and_audio_tracks",
@@ -87,7 +87,7 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_1),
+                    "external-filename": SUB_1,
                 },
                 {
                     "type": "audio",
@@ -97,10 +97,10 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_2),
+                    "external-filename": SUB_2,
                 },
             ],
-            expected_paths=[SUB_1, SUB_2],
+            expected_paths=(SUB_1, SUB_2),
         ),
         ExternalSubtitleTestCase(
             description="duplicate_subtitles",
@@ -108,15 +108,15 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_1),
+                    "external-filename": SUB_1,
                 },
                 {
                     "type": "sub",
                     "external": True,
-                    "external-filename": str(SUB_1),
+                    "external-filename": SUB_1,
                 },
             ],
-            expected_paths=[SUB_1],
+            expected_paths=(SUB_1,),
         ),
         ExternalSubtitleTestCase(
             description="no_external_only_internal",
@@ -132,13 +132,13 @@ SUB_3 = SUBTITLE_DIR / "subtitle3.ass"
                     "external-filename": "",
                 },
             ],
-            expected_paths=[],
+            expected_paths=(),
         ),
     ],
     ids=lambda tc: tc.description,
 )
 def test_external_subtitles(player_service, test_case):
-    player_service._mpv.track_list = test_case.track_list_data
+    player_service._external_subtitles_prop.on_update(test_case.track_list_data)
 
     result = player_service.external_subtitles
 

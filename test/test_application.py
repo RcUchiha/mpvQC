@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 
 import inject
 import pytest
-from PySide6.QtCore import QObject, QUrl
 
 from mpvqc.services import (
     FileStartupService,
@@ -14,26 +13,6 @@ from mpvqc.services import (
     InternationalizationService,
     SettingsService,
 )
-
-QML = """
-    import QtQuick
-    import QtQuick.Controls
-
-    ApplicationWindow {
-        visible: false; width: 50; height: 50
-
-        Button { objectName: "button-click-me"; text: "Click Me" }
-    }
-"""
-
-
-def test_find_object(qt_app):
-    qt_app._engine.loadData(QML.encode(), QUrl())
-    obj = qt_app.find_object(QObject, "button-click-me")
-    assert obj
-
-    with pytest.raises(ValueError):  # noqa: PT011
-        qt_app.find_object(QObject, "other-button-that-does-not-exist")
 
 
 @pytest.fixture
@@ -73,7 +52,6 @@ def test_application_configured(
     file_startup_service_mock,
     font_loader_service_mock,
     internationalization_service_mock,
-    settings_service,
 ):
     qt_app.configure()
 
@@ -86,7 +64,7 @@ def test_application_configured(
 def test_language_change_triggers_retranslation(qt_app, internationalization_service_mock, settings_service):
     qt_app.configure()
 
-    settings_service.languageChanged.emit("he-IL")
+    settings_service.language_changed.emit("he-IL")
 
     assert internationalization_service_mock.retranslate.call_count == 2
 

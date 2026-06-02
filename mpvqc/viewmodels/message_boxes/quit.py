@@ -8,16 +8,15 @@ from PySide6.QtQml import QmlElement
 
 from mpvqc.services import QuitService
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
-# noinspection PyTypeChecker
 @QmlElement
 class MpvqcQuitMessageBoxViewModel(QObject):
-    _quit: QuitService = inject.attr(QuitService)
+    _quit = inject.attr(QuitService)
 
     @Slot()
-    def quit(self):
+    def quit(self) -> None:
         self._quit.confirm_quit_despite_unsaved_changes()
         self._quit.shutdown()

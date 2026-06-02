@@ -3,15 +3,20 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 from collections.abc import Callable, Iterable
-from unittest.mock import MagicMock
+from typing import Protocol
 
 import inject
 import pytest
 
 from mpvqc.datamodels import Comment
-from mpvqc.models import MpvqcCommentModel
-from mpvqc.services import ImporterService, PlayerService, ResetService
+from mpvqc.models.comments import CommentsFacade
+from mpvqc.services import CommentsService, MainWindowService
 from mpvqc.viewmodels import MpvqcSearchBoxViewModel
+
+
+class CommentsModelFactory(Protocol):
+    def __call__(self, *, set_comments: Iterable[Comment]) -> CommentsFacade: ...
+
 
 DEFAULT_COMMENTS_SEARCH = (
     Comment(time=0, comment_type="commentType", comment="Word 1"),
@@ -30,46 +35,41 @@ EXTRA_COMMENTS = (
 )
 
 
-@pytest.fixture(autouse=True, scope="session")
-def configure_inject(common_bindings_with):
-    def custom_bindings(binder: inject.Binder):
-        binder.bind(ImporterService, MagicMock(spec_set=ImporterService))
-        binder.bind(PlayerService, MagicMock(spec_set=PlayerService))
-        binder.bind(ResetService, MagicMock(spec_set=ResetService))
-
-    common_bindings_with(custom_bindings)
-
-
-@pytest.fixture(scope="session")
-def make_model() -> Callable[[Iterable[Comment]], MpvqcCommentModel]:
-    def _make_model(set_comments: Iterable[Comment]):
-        # noinspection PyCallingNonCallable
-        model: MpvqcCommentModel = MpvqcCommentModel()
-        model.import_comments(tuple(set_comments))
-
-        return model
+@pytest.fixture
+def make_model() -> CommentsModelFactory:
+    def _make_model(*, set_comments: Iterable[Comment]) -> CommentsFacade:
+        facade = CommentsFacade()
+        facade.import_comments(tuple(set_comments))
+        return facade
 
     return _make_model
 
 
 @pytest.fixture
-def model(make_model):
-    # noinspection PyArgumentList
-    return make_model(set_comments=DEFAULT_COMMENTS_SEARCH)
+def model(make_model) -> CommentsFacade:
+    facade = make_model(set_comments=DEFAULT_COMMENTS_SEARCH)
+    inject.instance(CommentsService).register(facade)
+    return facade
+
+
+@pytest.fixture(autouse=True)
+def configure_inject(common_bindings_with):
+    def custom_bindings(binder: inject.Binder):
+        binder.bind_to_constructor(MainWindowService, MainWindowService)
+
+    common_bindings_with(custom_bindings)
 
 
 @pytest.fixture
-def view_model(model) -> MpvqcSearchBoxViewModel:
+def view_model(model: CommentsFacade) -> MpvqcSearchBoxViewModel:
     # noinspection PyCallingNonCallable
-    view_model = MpvqcSearchBoxViewModel()
-    view_model.model = model
-    return view_model
+    return MpvqcSearchBoxViewModel()
 
 
 @pytest.fixture
-def select(view_model):
+def select(model):
     def _select_index(index: int):
-        view_model.selectedIndex = index
+        model.selection.selectedRow = index
 
     return _select_index
 
@@ -153,7 +153,7 @@ def test_search_query_changed(view_model, make_spy, search, get_next, get_previo
 
 def test_search_with_empty_query(search):
     status_label, has_multiple, next_idx = search("")
-    assert status_label == ""
+    assert not status_label
     assert not has_multiple
     assert next_idx == -1
 

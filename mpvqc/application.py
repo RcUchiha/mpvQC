@@ -2,41 +2,45 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
+
 import os
 import sys
 import tempfile
-from functools import cache
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import inject
 from PySide6.QtCore import QUrl, Slot
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 
+from mpvqc.close_event_filter import CloseEventFilter
 from mpvqc.services import (
     FileStartupService,
     FontLoaderService,
-    FramelessWindowService,
     InternationalizationService,
+    MainWindowService,
     SettingsService,
 )
-from mpvqc.utility import CloseEventFilter, get_main_window
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 
 class MpvqcApplication(QGuiApplication):
-    _start_up: FileStartupService = inject.attr(FileStartupService)
-    _font_loader: FontLoaderService = inject.attr(FontLoaderService)
-    _frameless_window: FramelessWindowService = inject.attr(FramelessWindowService)
-    _i18n: InternationalizationService = inject.attr(InternationalizationService)
-    _settings: SettingsService = inject.attr(SettingsService)
+    _start_up = inject.attr(FileStartupService)
+    _font_loader = inject.attr(FontLoaderService)
+    _i18n = inject.attr(InternationalizationService)
+    _main_window = inject.attr(MainWindowService)
+    _settings = inject.attr(SettingsService)
 
-    def __init__(self, args):
-        super().__init__(args)
+    def __init__(self, arguments: Sequence[str]) -> None:
+        super().__init__(arguments)
         self._close_event_filter = CloseEventFilter()
         self._engine = QQmlApplicationEngine()
-        self._engine.addImportPath(":/qt/qml/styles")
 
-    def configure(self):
+    def configure(self) -> None:
         icon = QIcon(":/data/icon.svg")
         self.setWindowIcon(icon)
 
@@ -51,7 +55,7 @@ class MpvqcApplication(QGuiApplication):
         self._i18n.retranslate(app=self, language_code=language)
         self._engine.setUiLanguage(language)
 
-        self._settings.languageChanged.connect(self._on_language_changed)
+        self._settings.language_changed.connect(self._on_language_changed)
         self._engine.uiLanguageChanged.connect(self._retranslate)
 
     @Slot()
@@ -63,35 +67,22 @@ class MpvqcApplication(QGuiApplication):
         self._engine.setUiLanguage(language)
 
     @Slot()
-    def _retranslate(self):
+    def _retranslate(self) -> None:
         language_code = self._engine.uiLanguage()
         self._i18n.retranslate(app=self, language_code=language_code)
 
-    def start(self):
-        url = QUrl.fromLocalFile(":/qt/qml/MpvqcApplication.qml")
+    def start(self) -> None:
+        url = QUrl("qrc:/qt/qml/MpvqcApplication.qml")
         self._engine.load(url)
 
         if not self._engine.rootObjects():
             sys.exit(-1)
 
-        window = get_main_window()
-        self._frameless_window.configure_for(self, window)
-        window.installEventFilter(self._close_event_filter)
+        self._main_window.initialize()
+        self._main_window.install_event_filter(self._close_event_filter)
 
         remove_nuitka_splash_screen()
-        window.setVisible(True)
-
-    @cache
-    def find_object(self, object_type, name: str):
-        root = self._engine.rootObjects()
-        if not root:
-            msg = "Cannot find root object in QQmlApplicationEngine"
-            raise ValueError(msg)
-        obj = root[0].findChild(object_type, name)
-        if not obj:
-            msg = f"Cannot find {object_type} with name '{name}'"
-            raise ValueError(msg)
-        return obj
+        self._main_window.show()
 
 
 def remove_nuitka_splash_screen() -> None:

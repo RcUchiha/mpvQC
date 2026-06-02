@@ -2,55 +2,42 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-from collections.abc import Callable, Iterable
-from unittest.mock import MagicMock
+from collections.abc import Iterable
+from typing import Protocol
 
-import inject
 import pytest
 
 from mpvqc.datamodels import Comment
-from mpvqc.models import MpvqcCommentModel
-from mpvqc.services import ImporterService, PlayerService, ResetService, StateService
+from mpvqc.models.comments import CommentsFacade
+
+DEFAULT_COMMENTS: tuple[Comment, ...] = (
+    Comment(time=0, comment_type="commentType", comment="Word 1"),
+    Comment(time=5, comment_type="commentType", comment="Word 2"),
+    Comment(time=10, comment_type="commentType", comment="Word 3"),
+    Comment(time=15, comment_type="commentType", comment="Word 4"),
+    Comment(time=20, comment_type="commentType", comment="Word 5"),
+)
+
+
+class FacadeFactory(Protocol):
+    def __call__(self, *, set_comments: Iterable[Comment]) -> CommentsFacade: ...
 
 
 @pytest.fixture
-def state_service_mock():
-    return MagicMock(spec_set=StateService)
+def make_facade() -> FacadeFactory:
+    def _make_facade(*, set_comments: Iterable[Comment]) -> CommentsFacade:
+        facade = CommentsFacade()
+        facade.import_comments(tuple(set_comments))
+        return facade
+
+    return _make_facade
 
 
 @pytest.fixture
-def player_service_mock():
-    return MagicMock(spec_set=PlayerService)
-
-
-@pytest.fixture(autouse=True)
-def configure_injections(common_bindings_with, state_service_mock, player_service_mock):
-    def custom_bindings(binder: inject.Binder):
-        binder.bind(ImporterService, MagicMock(spec_set=ImporterService))
-        binder.bind(PlayerService, player_service_mock)
-        binder.bind(ResetService, MagicMock(spec_set=ResetService))
-        binder.bind(StateService, state_service_mock)
-
-    common_bindings_with(custom_bindings)
+def default_comments() -> tuple[Comment, ...]:
+    return DEFAULT_COMMENTS
 
 
 @pytest.fixture
-def make_model(
-    player_service_mock,
-) -> Callable[[Iterable[Comment], int | float], tuple[MpvqcCommentModel, Callable[[int], None]]]:
-    def _make_model(
-        set_comments: Iterable[Comment],
-        set_player_time: float = 0.0,
-    ):
-        player_service_mock.current_time = set_player_time
-
-        def set_time(value: int):
-            player_service_mock.current_time = value
-
-        # noinspection PyCallingNonCallable
-        model: MpvqcCommentModel = MpvqcCommentModel()
-        model.import_comments(tuple(set_comments))
-
-        return model, set_time
-
-    return _make_model
+def comments(make_facade, default_comments) -> CommentsFacade:
+    return make_facade(set_comments=default_comments)

@@ -8,7 +8,14 @@ from unittest.mock import MagicMock
 import inject
 import pytest
 
-from mpvqc.services import ExportService, ResetService, SettingsService, StateService
+from mpvqc.services import (
+    DesktopService,
+    ExportService,
+    MainWindowService,
+    ResetService,
+    SettingsService,
+    StateService,
+)
 from mpvqc.viewmodels import MpvqcMenuBarViewModel
 
 
@@ -20,6 +27,11 @@ def reset_service_mock() -> MagicMock:
 @pytest.fixture
 def export_service_mock() -> MagicMock:
     return MagicMock(spec_set=ExportService)
+
+
+@pytest.fixture
+def desktop_service_mock() -> MagicMock:
+    return MagicMock(spec_set=DesktopService)
 
 
 @pytest.fixture
@@ -35,12 +47,15 @@ def configure_inject(
     state_service,
     settings_service,
     export_service_mock,
+    desktop_service_mock,
 ):
     def custom_bindings(binder: inject.Binder):
+        binder.bind(DesktopService, desktop_service_mock)
         binder.bind(StateService, state_service)
         binder.bind(ResetService, reset_service_mock)
         binder.bind(SettingsService, settings_service)
         binder.bind(ExportService, export_service_mock)
+        binder.bind_to_constructor(MainWindowService, MainWindowService)
 
     common_bindings_with(custom_bindings)
 
@@ -84,3 +99,9 @@ def test_save(view_model, make_spy, configure_state, export_service_mock):
     view_model.requestSaveQcDocumentAs()
     assert export_service_mock.save.call_count == 1
     assert spy.count() == 3
+
+
+def test_open_app_data_folder(view_model, desktop_service_mock):
+    view_model.openAppDataFolder()
+
+    desktop_service_mock.open_app_data_folder.assert_called_once_with()

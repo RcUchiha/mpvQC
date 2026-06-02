@@ -2,13 +2,18 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+import logging
 from functools import cached_property
 
 from PySide6.QtCore import QDir, QTranslator
 
+from .settings import default_comment_types
+
+logger = logging.getLogger(__name__)
+
 
 class LookupTable:
-    def __init__(self):
+    def __init__(self) -> None:
         self._combined_lookup_table: dict[str, str] = {}
 
         self._translator = QTranslator()
@@ -26,13 +31,13 @@ class LookupTable:
                 raise ValueError(msg)
             self._add_to_combined_lookup_table()
 
-    @property
-    def _default_comment_types(self) -> list[str]:
-        return ["Translation", "Spelling", "Punctuation", "Phrasing", "Timing", "Typeset", "Note"]
-
     def _add_to_combined_lookup_table(self) -> None:
-        for english in self._default_comment_types:
+        for english in default_comment_types():
             translated = self._translator.translate("CommentTypes", english)
+            if translated is None:
+                msg = f"Failed to translate comment type: {english!r}"
+                logger.error(msg)
+                raise ValueError(msg)
             self._combined_lookup_table[translated] = english
 
     def lookup(self, comment_type: str) -> str:
@@ -44,7 +49,7 @@ class ReverseTranslatorService:
     It provides comment type identifiers mpvQC internally uses for the comment type model"""
 
     @cached_property
-    def _lookup_table(self):
+    def _lookup_table(self) -> LookupTable:
         return LookupTable()
 
     def lookup(self, comment_type_in_current_language: str) -> str:

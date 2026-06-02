@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import TYPE_CHECKING, override
 
 import inject
 from PySide6.QtCore import QAbstractListModel, QByteArray, Qt
@@ -12,22 +12,21 @@ from PySide6.QtQml import QmlElement
 
 from mpvqc.services import BuildInfoService
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from typing import Any
 
-    from PySide6.QtCore import QModelIndex, QPersistentModelIndex
+    from PySide6.QtCore import QModelIndex, QObject, QPersistentModelIndex
 
     from mpvqc.build import Dependency
 
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
-# noinspection PyPep8Naming,PyTypeChecker
 @QmlElement
 class MpvqcDependencyModel(QAbstractListModel):
-    _build_info: BuildInfoService = inject.attr(BuildInfoService)
+    _build_info = inject.attr(BuildInfoService)
 
     NameRole = Qt.ItemDataRole.UserRole + 1
     PackageRole = Qt.ItemDataRole.UserRole + 2
@@ -35,18 +34,20 @@ class MpvqcDependencyModel(QAbstractListModel):
     UrlRole = Qt.ItemDataRole.UserRole + 4
     LicenceRole = Qt.ItemDataRole.UserRole + 5
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._all_dependencies: list[Dependency] = [
             *self._build_info.dependencies,
             *self._build_info.dev_dependencies,
         ]
 
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:  # noqa: ARG002
+    @override
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         return len(self._all_dependencies)
 
+    @override
     def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
-        if not index.isValid() or index.row() >= len(self._all_dependencies):
+        if not index.isValid() or index.row() >= self.rowCount():
             return None
 
         dependency = self._all_dependencies[index.row()]
@@ -62,10 +63,10 @@ class MpvqcDependencyModel(QAbstractListModel):
                 return dependency.url
             case self.LicenceRole:
                 return dependency.licence
-            case _:
-                msg = f"Cannot find data to return for: {type(role)} {role}"
-                raise ValueError(msg)
 
+        return None
+
+    @override
     def roleNames(self) -> dict[int, QByteArray]:
         return {
             self.NameRole: QByteArray(b"name"),

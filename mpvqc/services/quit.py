@@ -2,8 +2,6 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-import platform
-
 import inject
 from PySide6.QtCore import QCoreApplication, QObject, QTimer, Signal
 
@@ -12,17 +10,17 @@ from .state import StateService
 
 
 class QuitService(QObject):
-    _state: StateService = inject.attr(StateService)
-    _player: PlayerService = inject.attr(PlayerService)
+    _state = inject.attr(StateService)
+    _player = inject.attr(PlayerService)
 
     confirmQuit = Signal()
 
-    def __init__(self, /):
+    def __init__(self, /) -> None:
         super().__init__()
         self._quit_despite_unsaved_changes = False
 
     def can_quit(self) -> bool:
-        # noinspection PyTypeChecker
+        # pyrefly: ignore [bad-return]
         return self._state.saved or self._quit_despite_unsaved_changes
 
     def request_quit(self) -> None:
@@ -32,8 +30,5 @@ class QuitService(QObject):
         self._quit_despite_unsaved_changes = True
 
     def shutdown(self) -> None:
-        if platform.system() == "Windows":
-            # Required to shut down explicitly due to nested window for player
-            self._player.terminate()
-
+        self._player.terminate()
         QTimer.singleShot(0, QCoreApplication.quit)

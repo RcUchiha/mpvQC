@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class InternationalizationService:
-    def __init__(self):
+    def __init__(self) -> None:
         self._translator_mpvqc = QTranslator()
         self._translator_qt = QTranslator()
         self._translator_qt_overrides = QTranslator()
@@ -28,6 +28,9 @@ class InternationalizationService:
 
         locale: QLocale = create_locale_from(language_code)
         logger.debug("Loading mpvQC translation %s for locale %s", language_code, locale.name())
+
+        QLocale.setDefault(locale)
+        logger.debug("Set default Qt locale to %s", locale.name())
 
         qt_translations_path = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
 
@@ -51,11 +54,10 @@ class InternationalizationService:
 
 
 def create_locale_from(language_code: str) -> QLocale:
-    match language_code:
-        case "pt-PT":
-            # As of Qt6.9 there aren't any official pt-PT translations available:
-            # https://code.qt.io/cgit/qt/qttranslations.git/tree/translations
-            # However, there are Brazilian Portuguese translations available
-            return QLocale("pt-BR")
-        case _:
-            return QLocale(language_code)
+    if language_code == "pt-PT":
+        # As of Qt6.9 there aren't any official qtbase pt-PT translations available:
+        # https://code.qt.io/cgit/qt/qttranslations.git/tree/translations
+        # However, there are Brazilian Portuguese translations available
+        return QLocale("pt-BR")
+
+    return QLocale(language_code)

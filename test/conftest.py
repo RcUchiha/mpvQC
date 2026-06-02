@@ -13,7 +13,7 @@ from PySide6.QtTest import QSignalSpy
 
 from mpvqc.application import MpvqcApplication
 from mpvqc.services import (
-    ResourceReaderService,
+    CommentsService,
     ResourceService,
     ReverseTranslatorService,
     SettingsService,
@@ -129,7 +129,6 @@ def configure_state(state_service) -> Callable:
         old = state_service._state
         state_service._state = ApplicationState(
             document=kwargs.get("document", old.document),
-            video=kwargs.get("video", old.video),
             saved=bool(kwargs.get("saved", old.saved)),
         )
 
@@ -166,9 +165,10 @@ def common_bindings_with():
     def _configure(*custom_configs):
         def config(binder: inject.Binder):
             # Common & shared services
-            binder.bind_to_constructor(ResourceReaderService, ResourceReaderService)
+            binder.bind_to_constructor(CommentsService, CommentsService)
             binder.bind_to_constructor(ResourceService, ResourceService)
             binder.bind_to_constructor(ReverseTranslatorService, ReverseTranslatorService)
+            binder.bind_to_constructor(StateService, StateService)
             binder.bind_to_constructor(TimeFormatterService, TimeFormatterService)
             binder.bind_to_constructor(TypeMapperService, TypeMapperService)
 

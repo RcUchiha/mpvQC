@@ -8,26 +8,25 @@ from PySide6.QtQml import QmlElement
 
 from mpvqc.services import VersionCheckerService
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
-# noinspection PyTypeChecker
 @QmlElement
 class MpvqcVersionCheckMessageBoxViewModel(QObject):
-    _checker: VersionCheckerService = inject.attr(VersionCheckerService)
+    _checker = inject.attr(VersionCheckerService)
 
     titleChanged = Signal()
     textChanged = Signal()
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
         self._title = ""
         self._text = ""
         self._check_for_new_version()
 
     def _check_for_new_version(self) -> None:
-        def check_version():
+        def check_version() -> None:
             title, text = self._checker.check_for_new_version()
             self._set_title(title)
             self._set_text(text)

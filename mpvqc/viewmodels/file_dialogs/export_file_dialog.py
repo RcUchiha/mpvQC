@@ -4,37 +4,31 @@
 
 
 import inject
-from PySide6.QtCore import Property, QObject, QRunnable, QThreadPool, QUrl, Slot
+from PySide6.QtCore import Property, QObject, QUrl, Slot
 from PySide6.QtQml import QmlElement
 
-from mpvqc.services import DocumentExportService, ExportService, TypeMapperService
+from mpvqc.services import ExportService, TypeMapperService
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
-# noinspection PyPep8Naming,PyTypeChecker
 @QmlElement
 class MpvqcExportFileDialogViewModel(QObject):
-    _exporter: ExportService = inject.attr(ExportService)
-    _document_exporter: DocumentExportService = inject.attr(DocumentExportService)
-    _type_mapper: TypeMapperService = inject.attr(TypeMapperService)
+    _exporter = inject.attr(ExportService)
+    _type_mapper = inject.attr(TypeMapperService)
 
     @Property(QUrl, constant=True, final=True)
     def filenameProposal(self) -> QUrl:
-        path = self._document_exporter.generate_file_path_proposal()
+        path = self._exporter.generate_file_path_proposal()
         return self._type_mapper.map_path_to_url(path)
 
     @Slot(QUrl, QUrl)
     def export(self, document: QUrl, template: QUrl) -> None:
-        def _job():
-            self._document_exporter.export(
-                file=self._type_mapper.map_url_to_path(document),
-                template=self._type_mapper.map_url_to_path(template),
-            )
-
-        runnable = QRunnable.create(_job)
-        QThreadPool.globalInstance().start(runnable)
+        self._exporter.export(
+            document=self._type_mapper.map_url_to_path(document),
+            template=self._type_mapper.map_url_to_path(template),
+        )
 
     @Slot(QUrl)
     def save(self, document: QUrl) -> None:

@@ -1,0 +1,184 @@
+# SPDX-FileCopyrightText: mpvQC developers
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import os
+import sys
+
+import inject
+from PySide6.QtCore import Property, QObject, QUrl, Signal, Slot
+from PySide6.QtQml import QmlElement
+
+from mpvqc.services import (
+    DesktopService,
+    ExportService,
+    MainWindowService,
+    ResetService,
+    SettingsService,
+    StateService,
+)
+
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
+QML_IMPORT_MAJOR_VERSION = 1
+
+
+@QmlElement
+class MpvqcMenuBarViewModel(QObject):
+    _desktop = inject.attr(DesktopService)
+    _exporter = inject.attr(ExportService)
+    _main_window = inject.attr(MainWindowService)
+    _resetter = inject.attr(ResetService)
+    _settings = inject.attr(SettingsService)
+    _state = inject.attr(StateService)
+
+    confirmResetRequested = Signal()
+    exportPathRequested = Signal()
+
+    openQcDocumentsRequested = Signal()
+    extendedExportRequested = Signal(QUrl)
+
+    openVideoRequested = Signal()
+    openSubtitlesRequested = Signal()
+    resizeVideoRequested = Signal()
+
+    appearanceDialogRequested = Signal()
+    commentTypesDialogRequested = Signal()
+    backupSettingsDialogRequested = Signal()
+    exportSettingsDialogRequested = Signal()
+    importSettingsDialogRequested = Signal()
+    editMpvConfigDialogRequested = Signal()
+    editInputConfigDialogRequested = Signal()
+    updateDialogRequested = Signal()
+    keyboardShortcutsDialogRequested = Signal()
+    extendedExportDialogRequested = Signal()
+    aboutDialogRequested = Signal()
+
+    closeAppRequested = Signal()
+
+    windowTitleFormatChanged = Signal(int)
+    applicationLayoutChanged = Signal(int)
+    isMainWindowFocusedChanged = Signal(bool)
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._settings.window_title_format_changed.connect(self.windowTitleFormatChanged)
+        self._settings.layout_orientation_changed.connect(self.applicationLayoutChanged)
+        self._main_window.is_main_window_focused_changed.connect(self.isMainWindowFocusedChanged)
+
+    @Property(bool, constant=True, final=True)
+    def isUpdateMenuVisible(self) -> bool:
+        return bool(os.environ.get("MPVQC_DEBUG")) or sys.platform == "win32"
+
+    @Property(int, notify=windowTitleFormatChanged)
+    def windowTitleFormat(self) -> int:
+        return self._settings.window_title_format
+
+    @Property(int, notify=applicationLayoutChanged)
+    def applicationLayout(self) -> int:
+        return self._settings.layout_orientation
+
+    @Property(bool, notify=isMainWindowFocusedChanged)
+    def isMainWindowFocused(self) -> bool:
+        return self._main_window.is_main_window_focused
+
+    @Slot()
+    def requestResetAppState(self) -> None:
+        if self._state.saved:
+            self._resetter.reset()
+        else:
+            self.confirmResetRequested.emit()
+
+    @Slot()
+    def requestOpenQcDocuments(self) -> None:
+        self.openQcDocumentsRequested.emit()
+
+    @Slot()
+    def requestSaveQcDocument(self) -> None:
+        if document := self._state.document:
+            self._exporter.save(document)
+        else:
+            self.requestSaveQcDocumentAs()
+
+    @Slot()
+    def requestSaveQcDocumentAs(self) -> None:
+        self.exportPathRequested.emit()
+
+    @Slot(str, QUrl)
+    def requestSaveQcDocumentExtendedUsing(self, _: str, exportTemplate: QUrl) -> None:
+        self.extendedExportRequested.emit(exportTemplate)
+
+    @Slot()
+    def requestOpenVideo(self) -> None:
+        self.openVideoRequested.emit()
+
+    @Slot()
+    def requestOpenSubtitles(self) -> None:
+        self.openSubtitlesRequested.emit()
+
+    @Slot()
+    def requestResizeVideo(self) -> None:
+        self.resizeVideoRequested.emit()
+
+    @Slot()
+    def requestOpenAppearanceDialog(self) -> None:
+        self.appearanceDialogRequested.emit()
+
+    @Slot()
+    def requestOpenCommentTypesDialog(self) -> None:
+        self.commentTypesDialogRequested.emit()
+
+    @Slot()
+    def requestOpenBackupSettingsDialog(self) -> None:
+        self.backupSettingsDialogRequested.emit()
+
+    @Slot()
+    def requestOpenExportSettingsDialog(self) -> None:
+        self.exportSettingsDialogRequested.emit()
+
+    @Slot()
+    def requestOpenImportSettingsDialog(self) -> None:
+        self.importSettingsDialogRequested.emit()
+
+    @Slot()
+    def requestOpenEditMpvConfigDialog(self) -> None:
+        self.editMpvConfigDialogRequested.emit()
+
+    @Slot()
+    def requestOpenEditInputConfigDialog(self) -> None:
+        self.editInputConfigDialogRequested.emit()
+
+    @Slot()
+    def requestOpenCheckForUpdatesDialog(self) -> None:
+        self.updateDialogRequested.emit()
+
+    @Slot()
+    def requestOpenKeyboardShortcutsDialog(self) -> None:
+        self.keyboardShortcutsDialogRequested.emit()
+
+    @Slot()
+    def requestOpenExtendedExportsDialog(self) -> None:
+        self.extendedExportDialogRequested.emit()
+
+    @Slot()
+    def requestOpenAboutDialog(self) -> None:
+        self.aboutDialogRequested.emit()
+
+    @Slot()
+    def openAppDataFolder(self) -> None:
+        self._desktop.open_app_data_folder()
+
+    @Slot()
+    def requestClose(self) -> None:
+        self.closeAppRequested.emit()
+
+    @Slot(int)
+    def configureWindowTitleFormat(self, value: int) -> None:
+        self._settings.window_title_format = value
+
+    @Slot(int)
+    def configureApplicationLayout(self, value: int) -> None:
+        self._settings.layout_orientation = value
+
+    @Slot(str)
+    def configureLanguage(self, value: str) -> None:
+        self._settings.language = value

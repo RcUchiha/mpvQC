@@ -3,29 +3,24 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
-from collections.abc import Iterable
-from dataclasses import dataclass, field
+from collections.abc import Sequence
 from pathlib import Path
+
+from mpvqc.datamodels import SubtitleImportResult
 
 logger = logging.getLogger(__name__)
 
 
 class SubtitleImporterService:
-    @dataclass(frozen=True)
-    class SubtitleImportResult:
-        subtitles: tuple[Path, ...] = field(default_factory=tuple)
-        existing_videos: tuple[Path, ...] = field(default_factory=tuple)
-
-    NO_IMPORT = SubtitleImportResult()
-
-    def read(self, subtitles: Iterable[Path]) -> SubtitleImportResult:
+    @staticmethod
+    def read(subtitles: Sequence[Path]) -> SubtitleImportResult:
         existing_vids = []
 
         for subtitle in subtitles:
             if video := parse_video_from(subtitle):
                 existing_vids.append(video)  # noqa: PERF401
 
-        return self.SubtitleImportResult(
+        return SubtitleImportResult(
             subtitles=tuple(subtitles),
             existing_videos=tuple(existing_vids),
         )

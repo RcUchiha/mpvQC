@@ -8,8 +8,11 @@ from typing import NamedTuple
 import inject
 import pytest
 
+from mpvqc.enums import MpvqcWindowTitleFormat
 from mpvqc.services import PlayerService, SettingsService, StateService
-from mpvqc.viewmodels import MpvqcHeaderViewModel, MpvqcMenuBarViewModel
+from mpvqc.viewmodels import MpvqcHeaderViewModel
+
+WindowTitleFormat = MpvqcWindowTitleFormat.WindowTitleFormat
 
 
 @pytest.fixture
@@ -35,7 +38,8 @@ def configure_inject(
 
 class WindowTitleTestCase(NamedTuple):
     saved: bool
-    window_title_format: MpvqcMenuBarViewModel.WindowTitleFormat
+    document: Path | None
+    window_title_format: WindowTitleFormat
     video_loaded: bool
     filename: str | None
     path: str | None
@@ -47,7 +51,8 @@ class WindowTitleTestCase(NamedTuple):
     [
         WindowTitleTestCase(
             saved=True,
-            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.DEFAULT,
+            document=None,
+            window_title_format=WindowTitleFormat.DEFAULT,
             video_loaded=False,
             filename=None,
             path=None,
@@ -55,7 +60,8 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=False,
-            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.DEFAULT,
+            document=Path("doc.qc"),
+            window_title_format=WindowTitleFormat.DEFAULT,
             video_loaded=False,
             filename=None,
             path=None,
@@ -63,7 +69,8 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=True,
-            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_NAME,
+            document=Path("doc.qc"),
+            window_title_format=WindowTitleFormat.FILE_NAME,
             video_loaded=True,
             filename="test_video.mp4",
             path=None,
@@ -71,7 +78,8 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=False,
-            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_NAME,
+            document=Path("doc.qc"),
+            window_title_format=WindowTitleFormat.FILE_NAME,
             video_loaded=True,
             filename="test_video.mp4",
             path=None,
@@ -79,7 +87,8 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=True,
-            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_PATH,
+            document=Path("doc.qc"),
+            window_title_format=WindowTitleFormat.FILE_PATH,
             video_loaded=True,
             filename=None,
             path=str(Path.home() / "test_video.mp4"),
@@ -87,7 +96,8 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=False,
-            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_PATH,
+            document=Path("doc.qc"),
+            window_title_format=WindowTitleFormat.FILE_PATH,
             video_loaded=True,
             filename=None,
             path=str(Path.home() / "test_video.mp4"),
@@ -95,11 +105,21 @@ class WindowTitleTestCase(NamedTuple):
         ),
         WindowTitleTestCase(
             saved=True,
-            window_title_format=MpvqcMenuBarViewModel.WindowTitleFormat.FILE_NAME,
+            document=None,
+            window_title_format=WindowTitleFormat.FILE_NAME,
             video_loaded=False,
             filename=None,
             path=None,
             expected="TestApp",
+        ),
+        WindowTitleTestCase(
+            saved=False,
+            document=None,
+            window_title_format=WindowTitleFormat.FILE_NAME,
+            video_loaded=True,
+            filename="test_video.mp4",
+            path=None,
+            expected="test_video.mp4",
         ),
     ],
 )
@@ -111,7 +131,7 @@ def test_window_title(
     settings_service,
     test_case: WindowTitleTestCase,
 ):
-    configure_state(saved=test_case.saved)
+    configure_state(saved=test_case.saved, document=test_case.document)
     player_service_mock.update(
         video_loaded=test_case.video_loaded,
         filename=test_case.filename,
@@ -139,5 +159,5 @@ def test_window_title_changed(
 
     spy = make_spy(view_model.windowTitleChanged)
 
-    settings_service.language = "es-MX"
+    settings_service.window_title_format = WindowTitleFormat.FILE_NAME.value
     assert spy.count() == 1

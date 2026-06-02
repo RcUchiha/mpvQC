@@ -1,0 +1,69 @@
+// SPDX-FileCopyrightText: mpvQC developers
+//
+// SPDX-License-Identifier: GPL-3.0-or-later
+
+pragma ComponentBehavior: Bound
+
+import QtQuick
+import QtTest
+
+TestCase {
+    id: testCase
+
+    name: "MpvqcApplicationContent::HelpMenu"
+    width: 1280
+    height: 720
+    visible: true
+    when: windowShown
+
+    TestHelpers {
+        id: it
+
+        testCase: testCase
+    }
+
+    function init(): void {
+        it.resetState();
+    }
+
+    function test_checkForUpdates_opensMessageBox(): void {
+        const control = it.makeControl();
+
+        it.menu.trigger(control, "helpMenu", "openCheckForUpdatesMenuItem");
+
+        it.find.openedDialog(control, "versionCheckMessageBox");
+        it.bridge.waitForBackgroundJobs();
+    }
+
+    function test_keyboardShortcuts_opensDialog(): void {
+        const control = it.makeControl();
+
+        it.menu.trigger(control, "helpMenu", "openKeyboardShortcutsMenuItem");
+
+        it.find.openedDialog(control, "shortcutsDialog");
+    }
+
+    function test_extendedExports_opensMessageBox(): void {
+        const control = it.makeControl();
+
+        it.menu.trigger(control, "helpMenu", "openExtendedExportsDialogMenuItem");
+
+        it.find.openedDialog(control, "extendedExportMessageBox");
+    }
+
+    function test_appDataFolder_opensExternalUrl(): void {
+        const control = it.makeControl();
+
+        it.menu.trigger(control, "helpMenu", "openAppDataFolderMenuItem");
+
+        tryVerify(() => it.bridge.openedDesktopUrls().includes("mpvqc-test://app-data-folder"));
+    }
+
+    function test_about_opensDialog(): void {
+        const control = it.makeControl();
+
+        it.menu.trigger(control, "helpMenu", "openAboutDialogMenuItem");
+
+        it.find.openedDialog(control, "aboutDialog");
+    }
+}

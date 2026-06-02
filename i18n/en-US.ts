@@ -174,11 +174,6 @@
         <source>New comment type</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Edit &quot;%1&quot;</source>
-        <extracomment>%1 will be the comment type being edited</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>ExportSettingsDialog</name>
@@ -262,49 +257,6 @@
     </message>
 </context>
 <context>
-    <name>ImportConfirmationDialog</name>
-    <message>
-        <source>Confirm Import</source>
-        <extracomment>Dialog title for confirming which videos and subtitles to import</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Videos</source>
-        <extracomment>Section header for video selection list</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Skip video</source>
-        <extracomment>Option to import without selecting any video</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>From QC document</source>
-        <extracomment>Tooltip indicating the video file was referenced in one of the imported documents</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>From subtitle</source>
-        <extracomment>Tooltip indicating the video file was referenced in one of the imported subtitles</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Subtitles</source>
-        <extracomment>Section header for subtitle selection list</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Select All</source>
-        <extracomment>Button to select all subtitles in the list</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Deselect All</source>
-        <extracomment>Button to deselect all subtitles in the list</extracomment>
-        <translation type="unfinished"></translation>
-    </message>
-</context>
-<context>
     <name>ImportSettingsDialog</name>
     <message>
         <source>Import Settings</source>
@@ -325,6 +277,124 @@
     <message>
         <source>Never</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>ImportWizardDialog</name>
+    <message>
+        <source>Back</source>
+        <extracomment>Button that returns the import wizard to the previous step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Cancel import</source>
+        <extracomment>Button that aborts the import wizard and discards any parsed comments</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <extracomment>Primary button when the wizard only lists unreadable documents</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm import</source>
+        <extracomment>Primary button finalizing the import on the last wizard step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm</source>
+        <extracomment>Primary button on the last step when nothing valid has been resolved yet</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Errors</source>
+        <extracomment>Step indicator label for the errors step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Session</source>
+        <extracomment>Step indicator label for the session step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Video</source>
+        <extracomment>Step indicator label for the video step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Subtitles</source>
+        <extracomment>Step indicator label for the subtitles step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Next</source>
+        <extracomment>Primary button advancing to the next wizard step</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirm Import</source>
+        <extracomment>Title of the import wizard dialog</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Import Error</source>
+        <extracomment>Title of the import wizard dialog when no valid content can be imported</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>You&apos;re about to import &lt;b&gt;%Ln&lt;/b&gt; comment(s) into your current session. What do you want to do?</source>
+        <extracomment>Session step header: states the incoming comment count and asks how to proceed (%Ln is the count)</extracomment>
+        <translation>
+            <numerusform>You&apos;re about to import &lt;b&gt;%Ln&lt;/b&gt; comment into your current session. What do you want to do?</numerusform>
+            <numerusform>You&apos;re about to import &lt;b&gt;%Ln&lt;/b&gt; comments into your current session. What do you want to do?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Add to your current comments</source>
+        <extracomment>Merge option label — keeps the existing comments and appends the incoming ones</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Start fresh with the new comments</source>
+        <extracomment>Replace option label — discards the existing comments before importing the incoming ones</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Which video should be loaded?</source>
+        <extracomment>Video step prompt above the candidate list</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Skip video</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Referenced by an imported QC document</source>
+        <extracomment>Tooltip on the per-row icon — the candidate video is referenced by one of the QC documents being imported</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Referenced by an imported subtitle file</source>
+        <extracomment>Tooltip on the per-row icon — the candidate video is referenced by one of the subtitle files being imported</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Which subtitles should be loaded?</source>
+        <extracomment>Subtitles step prompt above the subtitles list</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Select all</source>
+        <extracomment>Tri-state &quot;Select all&quot; checkbox in the subtitles step header</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message numerus="yes">
+        <source>%Ln incompatible QC document(s):</source>
+        <extracomment>Header above the list of QC documents whose format the importer rejected</extracomment>
+        <translation>
+            <numerusform>%Ln incompatible QC document:</numerusform>
+            <numerusform>%Ln incompatible QC documents:</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -540,19 +610,16 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <source>Open App Data Folder...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>About mpvQC...</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
     <name>MessageBoxes</name>
-    <message numerus="yes">
-        <source>Document Not Compatible</source>
-        <translation>
-            <numerusform>Incompatible Document</numerusform>
-            <numerusform>Incompatible Documents</numerusform>
-        </translation>
-    </message>
     <message>
         <source>Extended Exports</source>
         <translation type="unfinished"></translation>
@@ -602,6 +669,16 @@
     <message>
         <source>No text available</source>
         <extracomment>This is displayed as a fallback in the delete confirmation box when the actual comment is empty.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The export template could not be read.</source>
+        <extracomment>Shown when a user-supplied export template cannot be read (file gone, permission denied, or not valid UTF-8). The technical detail is logged, not surfaced to the user.</extracomment>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>The document could not be saved.</source>
+        <extracomment>Shown when writing the QC document fails (permission denied, disk full, target directory missing). The technical detail is logged, not surfaced.</extracomment>
         <translation type="unfinished"></translation>
     </message>
 </context>

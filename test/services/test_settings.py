@@ -7,14 +7,7 @@ from unittest.mock import patch
 import pytest
 from PySide6.QtCore import QLocale
 
-from mpvqc.services.settings import get_default_language
-
-
-@pytest.fixture(autouse=True)
-def clear_cache():
-    get_default_language.cache_clear()
-    yield
-    get_default_language.cache_clear()
+from mpvqc.services.settings import default_language
 
 
 @pytest.mark.parametrize(
@@ -25,7 +18,7 @@ def clear_cache():
     ],
 )
 @patch("mpvqc.models.languages.LANGUAGES")
-def test_get_default_language(mock_languages, locale_string, expected):
+def test_default_language(mock_languages, locale_string, expected):
     class MockLanguage:
         def __init__(self, identifier):
             self.identifier = identifier
@@ -33,25 +26,25 @@ def test_get_default_language(mock_languages, locale_string, expected):
     mock_languages.__iter__.return_value = [MockLanguage("fr-FR"), MockLanguage("en-US"), MockLanguage("de-DE")]
     locale = QLocale(locale_string)
 
-    result = get_default_language(locale)
+    result = default_language(locale)
 
     assert result == expected
 
 
 def test_backup_enabled_default(settings_service):
-    assert settings_service.backup_enabled is True
+    assert settings_service.backup_enabled
 
 
 def test_backup_enabled_set_and_get(settings_service):
     settings_service.backup_enabled = False
-    assert settings_service.backup_enabled is False
+    assert not settings_service.backup_enabled
 
     settings_service.backup_enabled = True
-    assert settings_service.backup_enabled is True
+    assert settings_service.backup_enabled
 
 
 def test_backup_enabled_signal_emission(settings_service, make_spy):
-    spy = make_spy(settings_service.backupEnabledChanged)
+    spy = make_spy(settings_service.backup_enabled_changed)
 
     settings_service.backup_enabled = False
     assert spy.count() == 1
@@ -72,7 +65,7 @@ def test_theme_identifier_set_and_get(settings_service):
 
 
 def test_theme_identifier_signal_emission(settings_service, make_spy):
-    spy = make_spy(settings_service.themeIdentifierChanged)
+    spy = make_spy(settings_service.theme_identifier_changed)
 
     test_theme = "new-theme"
     settings_service.theme_identifier = test_theme
@@ -94,7 +87,7 @@ def test_backup_interval_set_and_get(settings_service):
 
 
 def test_backup_interval_signal_emission(settings_service, make_spy):
-    spy = make_spy(settings_service.backupIntervalChanged)
+    spy = make_spy(settings_service.backup_interval_changed)
 
     test_interval = 90
     settings_service.backup_interval = test_interval
@@ -116,7 +109,7 @@ def test_time_format_set_and_get(settings_service):
 
 
 def test_time_format_signal_emission(settings_service, make_spy):
-    spy = make_spy(settings_service.timeFormatChanged)
+    spy = make_spy(settings_service.time_format_changed)
 
     test_format = 2
     settings_service.time_format = test_format

@@ -4,20 +4,20 @@
 
 from __future__ import annotations
 
-import typing
+from typing import TYPE_CHECKING, override
 
 from PySide6.QtCore import QAbstractListModel, QByteArray, QCoreApplication, Qt
 from PySide6.QtQml import QmlElement
 
-from mpvqc.services import SettingsService
+from mpvqc.enums import ImportFoundVideo
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from typing import Any
 
     from PySide6.QtCore import QModelIndex, QPersistentModelIndex
 
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
@@ -28,39 +28,43 @@ class ImportOptionsModel(QAbstractListModel):
     TextRole = Qt.ItemDataRole.UserRole + 1
     ValueRole = Qt.ItemDataRole.UserRole + 2
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._items = [
             {
                 "text": QCoreApplication.translate("ImportSettingsDialog", "Always"),
-                "value": SettingsService.ImportFoundVideo.ALWAYS.value,
+                "value": ImportFoundVideo.ALWAYS.value,
             },
             {
                 "text": QCoreApplication.translate("ImportSettingsDialog", "Ask every time"),
-                "value": SettingsService.ImportFoundVideo.ASK_EVERY_TIME.value,
+                "value": ImportFoundVideo.ASK_EVERY_TIME.value,
             },
             {
                 "text": QCoreApplication.translate("ImportSettingsDialog", "Never"),
-                "value": SettingsService.ImportFoundVideo.NEVER.value,
+                "value": ImportFoundVideo.NEVER.value,
             },
         ]
 
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:  # noqa: ARG002
+    @override
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         return len(self._items)
 
+    @override
     def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
-        if not index.isValid():
+        if not index.isValid() or index.row() >= self.rowCount():
             return None
 
         item = self._items[index.row()]
 
-        if role == self.TextRole:
-            return item["text"]
-        if role == self.ValueRole:
-            return item["value"]
+        match role:
+            case self.TextRole:
+                return item["text"]
+            case self.ValueRole:
+                return item["value"]
 
         return None
 
+    @override
     def roleNames(self) -> dict[int, QByteArray]:
         return {
             self.TextRole: QByteArray(b"text"),

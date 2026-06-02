@@ -2,217 +2,217 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from typing import NamedTuple
+
 import pytest
 
 from mpvqc.datamodels import Comment
+from mpvqc.models.comments import AnimatedSelection, QuickSelection
 from mpvqc.models.comments.roles import Role
 
-DEFAULT_COMMENTS = (
-    Comment(time=0, comment_type="commentType", comment="Word 1"),
-    Comment(time=5, comment_type="commentType", comment="Word 2"),
-    Comment(time=10, comment_type="commentType", comment="Word 3"),
-    Comment(time=15, comment_type="commentType", comment="Word 4"),
-    Comment(time=20, comment_type="commentType", comment="Word 5"),
-)
+
+def _data_at(comments, row, role):
+    store = comments.store
+    return store.data(store.index(row), role)
 
 
-@pytest.fixture
-def model(make_model):
-    # noinspection PyArgumentList
-    model, _ = make_model(
-        set_comments=DEFAULT_COMMENTS,
-        set_player_time=0,
+def test_update_time_sorts_model_again(comments):
+    comments.update_time(row=0, new_time=7)
+    assert _data_at(comments, 0, Role.COMMENT) == "Word 2"
+    assert _data_at(comments, 1, Role.COMMENT) == "Word 1"
+
+    comments.undo()
+    assert _data_at(comments, 0, Role.COMMENT) == "Word 1"
+    assert _data_at(comments, 1, Role.COMMENT) == "Word 2"
+
+    comments.redo()
+    assert _data_at(comments, 0, Role.COMMENT) == "Word 2"
+    assert _data_at(comments, 1, Role.COMMENT) == "Word 1"
+
+
+def test_update_time_fires_signals(comments, make_spy):
+    spy = make_spy(comments.view_action)
+
+    comments.update_time(row=0, new_time=7)
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == AnimatedSelection(row=1)
+
+    spy.reset()
+    comments.undo()
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == AnimatedSelection(row=0)
+
+    spy.reset()
+    comments.redo()
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == AnimatedSelection(row=1)
+
+
+class _RetimeCase(NamedTuple):
+    src_row: int
+    new_time: int
+    expected_dst_row: int
+    expected_order: list[str]
+
+
+_RETIME_CASES = {
+    "no_reorder": _RetimeCase(
+        src_row=1,
+        new_time=4,
+        expected_dst_row=1,
+        expected_order=["Word 1", "Word 2", "Word 3", "Word 4", "Word 5"],
+    ),
+    "same_time": _RetimeCase(
+        src_row=2,
+        new_time=10,
+        expected_dst_row=2,
+        expected_order=["Word 1", "Word 2", "Word 3", "Word 4", "Word 5"],
+    ),
+    "move_to_head": _RetimeCase(
+        src_row=3,
+        new_time=-5,
+        expected_dst_row=0,
+        expected_order=["Word 4", "Word 1", "Word 2", "Word 3", "Word 5"],
+    ),
+    "move_to_tail": _RetimeCase(
+        src_row=1,
+        new_time=999,
+        expected_dst_row=4,
+        expected_order=["Word 1", "Word 3", "Word 4", "Word 5", "Word 2"],
+    ),
+}
+
+
+@pytest.mark.parametrize("case", _RETIME_CASES.values(), ids=_RETIME_CASES.keys())
+def test_update_time_reorders(comments, make_spy, case: _RetimeCase):
+    spy = make_spy(comments.view_action)
+
+    comments.update_time(row=case.src_row, new_time=case.new_time)
+
+    assert spy.at(invocation=0, argument=0) == AnimatedSelection(row=case.expected_dst_row)
+    assert [_data_at(comments, i, Role.COMMENT) for i in range(comments.rowCount())] == case.expected_order
+
+
+def test_update_time_into_tied_group_respects_seq_order(make_facade):
+    comments = make_facade(
+        set_comments=(
+            Comment(time=0, comment_type="t", comment="A"),
+            Comment(time=5, comment_type="t", comment="B"),
+            Comment(time=5, comment_type="t", comment="C"),
+            Comment(time=10, comment_type="t", comment="D"),
+        ),
     )
-    return model
+
+    comments.update_time(row=3, new_time=0)
+
+    assert [_data_at(comments, i, Role.COMMENT) for i in range(4)] == ["A", "D", "B", "C"]
 
 
-def test_update_time_sorts_model_again(model):
-    model.update_time(row=0, new_time=7)
-    assert model.item(0, 0).data(Role.COMMENT) == "Word 2"
-    assert model.item(1, 0).data(Role.COMMENT) == "Word 1"
+def test_update_comment_type(comments):
+    comments.update_comment_type(row=0, comment_type="updated comment type")
+    assert _data_at(comments, 0, Role.TYPE) == "updated comment type"
 
-    model.undo()
-    assert model.item(0, 0).data(Role.COMMENT) == "Word 1"
-    assert model.item(1, 0).data(Role.COMMENT) == "Word 2"
+    comments.undo()
+    assert _data_at(comments, 0, Role.TYPE) == "commentType"
 
-    model.redo()
-    assert model.item(0, 0).data(Role.COMMENT) == "Word 2"
-    assert model.item(1, 0).data(Role.COMMENT) == "Word 1"
+    comments.redo()
+    assert _data_at(comments, 0, Role.TYPE) == "updated comment type"
 
 
-def test_update_time_invalidates_search_results(model, make_spy):
-    spy = make_spy(model.search_invalidated)
+def test_update_comment_type_fires_signals(comments, make_spy):
+    spy = make_spy(comments.view_action)
 
-    model.update_time(row=0, new_time=7)
+    comments.update_comment_type(row=0, comment_type="updated comment type")
     assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == QuickSelection(row=0)
 
-    model.undo()
-    assert spy.count() == 2
-
-    model.redo()
-    assert spy.count() == 3
-
-
-def test_update_time_fires_signals(model, make_spy):
-    initially_spy = make_spy(model.time_updated_initial)
-    undone_spy = make_spy(model.time_updated_undo)
-    redone_spy = make_spy(model.time_updated_redo)
-
-    model.update_time(row=0, new_time=7)
-    assert initially_spy.count() == 1
-    assert undone_spy.count() == 0
-    assert redone_spy.count() == 0
-    assert initially_spy.at(invocation=0, argument=0) == 1
-
-    initially_spy.reset()
-    undone_spy.reset()
-    redone_spy.reset()
-
-    model.undo()
-
-    assert initially_spy.count() == 0
-    assert undone_spy.count() == 1
-    assert redone_spy.count() == 0
-
-    initially_spy.reset()
-    undone_spy.reset()
-    redone_spy.reset()
-
-    model.redo()
-
-    assert initially_spy.count() == 0
-    assert undone_spy.count() == 0
-    assert redone_spy.count() == 1
-    assert redone_spy.at(invocation=0, argument=0) == 1
-
-
-def test_update_comment_type(model):
-    model.update_comment_type(row=0, comment_type="updated comment type")
-    assert model.item(0, 0).data(Role.TYPE) == "updated comment type"
-
-    model.undo()
-    assert model.item(0, 0).data(Role.TYPE) == "commentType"
-
-    model.redo()
-    assert model.item(0, 0).data(Role.TYPE) == "updated comment type"
-
-
-def test_update_comment_type_fires_signals(model, make_spy):
-    updated_spy = make_spy(model.comment_type_updated_initial)
-    undone_spy = make_spy(model.comment_type_updated_undo)
-
-    model.update_comment_type(row=0, comment_type="updated comment type")
-    assert updated_spy.count() == 1
-    assert updated_spy.at(invocation=0, argument=0) == 0
-    assert undone_spy.count() == 0
-
-    updated_spy.reset()
-    undone_spy.reset()
-
-    model.undo()
-    model.selectedRow = 3
-
-    assert updated_spy.count() == 0
-    assert undone_spy.count() == 1
-    assert undone_spy.at(invocation=0, argument=0) == 0
-
-    updated_spy.reset()
-    undone_spy.reset()
-
-    model.redo()
-    model.selectedRow = 3
-
-    assert updated_spy.count() == 1
-    assert undone_spy.count() == 0
-    assert updated_spy.at(invocation=0, argument=0) == 0
-
-
-def test_update_comment(model):
-    model.update_comment(row=0, comment="new comment")
-    assert model.item(0, 0).data(Role.COMMENT) == "new comment"
-
-    model.undo()
-    assert model.item(0, 0).data(Role.COMMENT) == "Word 1"
-
-    model.redo()
-    assert model.item(0, 0).data(Role.COMMENT) == "new comment"
-
-
-def test_update_comment_invalidates_search_results(model, make_spy):
-    spy = make_spy(model.search_invalidated)
-
-    model.update_comment(row=0, comment="new")
+    spy.reset()
+    comments.undo()
     assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == AnimatedSelection(row=0)
 
-    model.undo()
-    assert spy.count() == 2
-
-    model.redo()
-    assert spy.count() == 3
-
-
-def test_update_comment_fires_signals(model, make_spy):
-    updated_spy = make_spy(model.comment_updated_initial)
-    undone_spy = make_spy(model.comment_updated_undo)
-
-    model.update_comment(row=0, comment="new")
-    assert updated_spy.count() == 1
-    assert updated_spy.at(invocation=0, argument=0) == 0
-    assert undone_spy.count() == 0
-
-    updated_spy.reset()
-    undone_spy.reset()
-
-    model.undo()
-    model.selectedRow = 3
-
-    assert updated_spy.count() == 0
-    assert undone_spy.count() == 1
-    assert undone_spy.at(invocation=0, argument=0) == 0
-
-    updated_spy.reset()
-    undone_spy.reset()
-
-    model.redo()
-
-    assert updated_spy.count() == 1
-    assert undone_spy.count() == 0
-    assert updated_spy.at(invocation=0, argument=0) == 0
+    spy.reset()
+    comments.redo()
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == AnimatedSelection(row=0)
 
 
-def test_update_comments_consecutively_undo_redo(make_model):
-    model, set_time = make_model(DEFAULT_COMMENTS, 999)
-    model.add_row("comment-type")
+def test_update_comment_type_does_not_invalidate_search(comments, monkeypatch):
+    comments.search("Word", include_current_row=True, top_down=True)
 
-    model.update_comment(row=5, comment="First")
-    model.update_comment(row=5, comment="First - Second")
-    model.undo()
+    def fail(*_args, **_kwargs):
+        pytest.fail("UpdateType must not trigger a fresh scan")
 
-    assert model.item(5, 0).data(Role.COMMENT) == "First"
+    monkeypatch.setattr(comments.store, "search_rows", fail)
+    comments.update_comment_type(row=0, comment_type="other")
 
-
-def test_update_time_state_changes(model, state_service_mock):
-    model.update_time(0, 100)
-    assert state_service_mock.change.call_count == 1
-
-    model.undo()
-    assert state_service_mock.change.call_count == 2
-
-    model.redo()
-    assert state_service_mock.change.call_count == 3
+    after = comments.search("Word", include_current_row=True, top_down=True)
+    assert after.total == 5
 
 
-def test_update_comment_type_state_changes(model, state_service_mock):
-    model.update_comment_type(0, "newType")
-    assert state_service_mock.change.call_count == 1
+def test_update_comment(comments):
+    comments.update_comment(row=0, comment="new comment")
+    assert _data_at(comments, 0, Role.COMMENT) == "new comment"
 
-    model.undo()
-    assert state_service_mock.change.call_count == 2
+    comments.undo()
+    assert _data_at(comments, 0, Role.COMMENT) == "Word 1"
+
+    comments.redo()
+    assert _data_at(comments, 0, Role.COMMENT) == "new comment"
 
 
-def test_update_comment_state_changes(model, state_service_mock):
-    model.update_comment(0, "new comment")
-    assert state_service_mock.change.call_count == 1
+def test_update_comment_invalidates_search(comments):
+    initial = comments.search("Word", include_current_row=True, top_down=True)
+    assert initial.total == 5
 
-    model.undo()
-    assert state_service_mock.change.call_count == 2
+    comments.update_comment(row=0, comment="other")
+
+    after = comments.search("Word", include_current_row=True, top_down=True)
+    assert after.total == 4
+
+
+def test_update_time_invalidates_search(make_facade):
+    comments = make_facade(
+        set_comments=(
+            Comment(time=0, comment_type="commentType", comment="Word 1"),
+            Comment(time=5, comment_type="commentType", comment="Other"),
+            Comment(time=10, comment_type="commentType", comment="Word 2"),
+        ),
+    )
+
+    initial = comments.search("Word", include_current_row=True, top_down=True)
+    assert initial.index == 0
+
+    # Move "Word 1" past "Other"; first match now lives at row 1.
+    comments.update_time(row=0, new_time=7)
+
+    after = comments.search("Word", include_current_row=True, top_down=True)
+    assert after.index == 1
+
+
+def test_update_comment_fires_signals(comments, make_spy):
+    spy = make_spy(comments.view_action)
+
+    comments.update_comment(row=1, comment="new")
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == QuickSelection(row=1)
+
+    spy.reset()
+    comments.undo()
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == AnimatedSelection(row=1)
+
+    spy.reset()
+    comments.redo()
+    assert spy.count() == 1
+    assert spy.at(invocation=0, argument=0) == AnimatedSelection(row=1)
+
+
+def test_update_comments_consecutively_undo_redo(comments):
+    comments.add_row(999, "comment-type")
+
+    comments.update_comment(row=5, comment="First")
+    comments.update_comment(row=5, comment="First - Second")
+    comments.undo()
+
+    assert _data_at(comments, 5, Role.COMMENT) == "First"

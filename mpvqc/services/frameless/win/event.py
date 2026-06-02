@@ -10,6 +10,7 @@
 
 import ctypes.wintypes
 from ctypes import cast
+from typing import override
 
 import PySide6.QtCore
 import win32api
@@ -79,7 +80,7 @@ def handle_non_client_calculate_size(hwnd, l_param) -> tuple[bool, int]:
 
     if (maximized or fullscreen) and Taskbar.is_auto_hide():
         position = Taskbar.get_position(hwnd)
-        if position == Taskbar.LEFT:
+        if position == Taskbar.TOP:
             rect.top += Taskbar.AUTO_HIDE_THICKNESS
         elif position == Taskbar.BOTTOM:
             rect.bottom -= Taskbar.AUTO_HIDE_THICKNESS
@@ -92,20 +93,19 @@ def handle_non_client_calculate_size(hwnd, l_param) -> tuple[bool, int]:
 
 
 class WindowsEventFilter(PySide6.QtCore.QAbstractNativeEventFilter):
-    """"""
-
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self._top_lvl_hwnd = None
         self._embedded_player_hwnd = None
 
-    def set_top_lvl_hwnd(self, hwnd):
+    def set_top_lvl_hwnd(self, hwnd) -> None:
         self._top_lvl_hwnd = hwnd
 
-    def set_embedded_player_hwnd(self, hwnd):
+    def set_embedded_player_hwnd(self, hwnd) -> None:
         self._embedded_player_hwnd = hwnd
 
-    def nativeEventFilter(self, _, message):
+    @override
+    def nativeEventFilter(self, _, message) -> tuple[bool, int]:
         msg = ctypes.wintypes.MSG.from_address(int(message))
 
         hwnd = msg.hWnd

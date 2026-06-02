@@ -2,33 +2,52 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from __future__ import annotations
+
 import os
-from enum import IntEnum
-from functools import cache
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, cast, overload
 
 import inject
-from PySide6.QtCore import QT_TRANSLATE_NOOP, QLocale, QObject, QSettings, QStandardPaths, QUrl, Signal
+from PySide6.QtCore import (
+    QT_TRANSLATE_NOOP,
+    QLocale,
+    QObject,
+    QSettings,
+    QStandardPaths,
+    Qt,
+    QUrl,
+    Signal,
+)
+
+from mpvqc.enums import ImportFoundVideo, TimeFormat, WindowTitleFormat
 
 from .application_paths import ApplicationPathsService
 from .type_mapper import TypeMapperService
 
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
-def get_default_username() -> str:
+
+def default_theme_identifier() -> str:
+    return "material-you-dark"
+
+
+def default_username() -> str:
     return os.environ.get("USERNAME", os.environ.get("USER", "nickname"))
 
 
-def get_default_documents_location() -> QUrl:
+def default_documents_location() -> QUrl:
     location = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.DocumentsLocation)
     return QUrl.fromLocalFile(location)
 
 
-def get_default_movie_location() -> QUrl:
+def default_movie_location() -> QUrl:
     location = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.MoviesLocation)
     return QUrl.fromLocalFile(location)
 
 
-@cache
-def get_default_language(locale: QLocale | None = None) -> str:
+def default_language(locale: QLocale | None = None) -> str:
     if locale is None:
         locale = QLocale.system()
 
@@ -43,272 +62,217 @@ def get_default_language(locale: QLocale | None = None) -> str:
     return "en-US"
 
 
-# noinspection PyTypeChecker
+def default_comment_types() -> list[str]:
+    return [
+        str(QT_TRANSLATE_NOOP("CommentTypes", "Translation")),
+        str(QT_TRANSLATE_NOOP("CommentTypes", "Spelling")),
+        str(QT_TRANSLATE_NOOP("CommentTypes", "Punctuation")),
+        str(QT_TRANSLATE_NOOP("CommentTypes", "Phrasing")),
+        str(QT_TRANSLATE_NOOP("CommentTypes", "Timing")),
+        str(QT_TRANSLATE_NOOP("CommentTypes", "Typeset")),
+        str(QT_TRANSLATE_NOOP("CommentTypes", "Note")),
+    ]
+
+
+@dataclass(eq=False)
+class _Setting[T]:
+    key: str
+    default: T | Callable[[], T]
+    type_: type[T]
+    signal: Signal
+
+    @overload
+    def __get__(self, obj: None, _owner: type | None = None) -> _Setting[T]: ...
+
+    @overload
+    def __get__(self, obj: SettingsService, _owner: type | None = None) -> T: ...
+
+    def __get__(self, obj: SettingsService | None, _owner: type | None = None) -> T | _Setting[T]:
+        if obj is None:
+            return self
+        if obj.qsettings.contains(self.key):
+            return cast("T", obj.qsettings.value(self.key, type=self.type_))
+        return self.default() if callable(self.default) else self.default
+
+    def __set__(self, obj: SettingsService, value: T) -> None:
+        if self.__get__(obj) != value:
+            obj.qsettings.setValue(self.key, value)
+            self.signal.__get__(obj, type(obj)).emit(value)
+
+
 class SettingsService(QObject):
-    _paths: ApplicationPathsService = inject.attr(ApplicationPathsService)
-    _type_mapper: TypeMapperService = inject.attr(TypeMapperService)
+    _paths = inject.attr(ApplicationPathsService)
+    _type_mapper = inject.attr(TypeMapperService)
 
-    class TimeFormat(IntEnum):
-        EMPTY = 0
-        CURRENT_TIME = 1
-        REMAINING_TIME = 2
-        CURRENT_TOTAL_TIME = 3
+    backup_enabled_changed = Signal(bool)
+    backup_enabled = _Setting(
+        "Backup/enabled",
+        default=True,
+        type_=bool,
+        signal=backup_enabled_changed,
+    )
 
-    class ImportFoundVideo(IntEnum):
-        ALWAYS = 0
-        ASK_EVERY_TIME = 1
-        NEVER = 2
+    backup_interval_changed = Signal(int)
+    backup_interval = _Setting(
+        "Backup/interval",
+        default=60,
+        type_=int,
+        signal=backup_interval_changed,
+    )
 
-    # Backup
-    backupEnabledChanged = Signal(bool)
-    backupIntervalChanged = Signal(int)
+    language_changed = Signal(str)
+    language = _Setting(
+        "Common/language",
+        default=default_language,
+        type_=str,
+        signal=language_changed,
+    )
 
-    # Common
-    languageChanged = Signal(str)
-    commentTypesChanged = Signal(list)
+    comment_types_changed = Signal(list)
+    comment_types = _Setting(
+        "Common/commentTypes",
+        default=default_comment_types,
+        type_=list,
+        signal=comment_types_changed,
+    )
 
-    # Export
-    nicknameChanged = Signal(str)
-    writeHeaderDateChanged = Signal(bool)
-    writeHeaderGeneratorChanged = Signal(bool)
-    writeHeaderNicknameChanged = Signal(bool)
-    writeHeaderVideoPathChanged = Signal(bool)
-    writeHeaderSubtitlesChanged = Signal(bool)
+    nickname_changed = Signal(str)
+    nickname = _Setting(
+        "Export/nickname",
+        default=default_username,
+        type_=str,
+        signal=nickname_changed,
+    )
 
-    # StatusBar
-    statusbarPercentageChanged = Signal(bool)
-    timeFormatChanged = Signal(int)
+    write_header_date_changed = Signal(bool)
+    write_header_date = _Setting(
+        "Export/writeHeaderDate",
+        default=True,
+        type_=bool,
+        signal=write_header_date_changed,
+    )
 
-    # Import
-    lastDirectoryVideoChanged = Signal(QUrl)
-    lastDirectoryDocumentsChanged = Signal(QUrl)
-    lastDirectorySubtitlesChanged = Signal(QUrl)
-    importFoundVideoChanged = Signal(int)
+    write_header_generator_changed = Signal(bool)
+    write_header_generator = _Setting(
+        "Export/writeHeaderGenerator",
+        default=True,
+        type_=bool,
+        signal=write_header_generator_changed,
+    )
 
-    # SplitView
-    layoutOrientationChanged = Signal(int)
+    write_header_nickname_changed = Signal(bool)
+    write_header_nickname = _Setting(
+        "Export/writeHeaderNickname",
+        default=False,
+        type_=bool,
+        signal=write_header_nickname_changed,
+    )
 
-    # Theme
-    themeIdentifierChanged = Signal(str)
-    themeColorOptionChanged = Signal(int)
+    write_header_video_path_changed = Signal(bool)
+    write_header_video_path = _Setting(
+        "Export/writeHeaderVideoPath",
+        default=True,
+        type_=bool,
+        signal=write_header_video_path_changed,
+    )
 
-    # Window Title
-    windowTitleFormatChanged = Signal(int)
+    write_header_subtitles_changed = Signal(bool)
+    write_header_subtitles = _Setting(
+        "Export/writeHeaderSubtitles",
+        default=False,
+        type_=bool,
+        signal=write_header_subtitles_changed,
+    )
 
-    def __init__(self, parent=None, ini_file: str | None = None):
+    statusbar_percentage_changed = Signal(bool)
+    statusbar_percentage = _Setting(
+        "StatusBar/statusbarPercentage",
+        default=True,
+        type_=bool,
+        signal=statusbar_percentage_changed,
+    )
+
+    time_format_changed = Signal(int)
+    time_format = _Setting(
+        "StatusBar/timeFormat",
+        default=TimeFormat.CURRENT_TOTAL_TIME.value,
+        type_=int,
+        signal=time_format_changed,
+    )
+
+    last_directory_video_changed = Signal(QUrl)
+    last_directory_video = _Setting(
+        "Import/lastDirectoryVideo",
+        default=default_movie_location,
+        type_=QUrl,
+        signal=last_directory_video_changed,
+    )
+
+    last_directory_documents_changed = Signal(QUrl)
+    last_directory_documents = _Setting(
+        "Import/lastDirectoryDocuments",
+        default=default_documents_location,
+        type_=QUrl,
+        signal=last_directory_documents_changed,
+    )
+
+    last_directory_subtitles_changed = Signal(QUrl)
+    last_directory_subtitles = _Setting(
+        "Import/lastDirectorySubtitles",
+        default=default_documents_location,
+        type_=QUrl,
+        signal=last_directory_subtitles_changed,
+    )
+
+    import_found_video_changed = Signal(int)
+    import_found_video = _Setting(
+        "Import/importFoundVideo",
+        default=ImportFoundVideo.ASK_EVERY_TIME.value,
+        type_=int,
+        signal=import_found_video_changed,
+    )
+
+    layout_orientation_changed = Signal(int)
+    layout_orientation = _Setting(
+        "SplitView/layoutOrientation",
+        default=Qt.Orientation.Vertical.value,
+        type_=int,
+        signal=layout_orientation_changed,
+    )
+
+    theme_identifier_changed = Signal(str)
+    theme_identifier = _Setting(
+        "Theme/themeIdentifier",
+        default=default_theme_identifier,
+        type_=str,
+        signal=theme_identifier_changed,
+    )
+
+    primary_color_changed = Signal(str)
+    primary_color = _Setting(
+        "Theme/primaryColor",
+        default="#3f51b5",
+        type_=str,
+        signal=primary_color_changed,
+    )
+
+    window_title_format_changed = Signal(int)
+    window_title_format = _Setting(
+        "Window/titleFormat",
+        default=WindowTitleFormat.DEFAULT.value,
+        type_=int,
+        signal=window_title_format_changed,
+    )
+
+    def __init__(self, parent: QObject | None = None, ini_file: str | None = None) -> None:
         super().__init__(parent)
-        if ini_file is None:
-            ini_file = self._type_mapper.map_path_to_str(self._paths.file_settings)
-        self._settings = QSettings(ini_file, QSettings.Format.IniFormat)
+        file = ini_file if ini_file is not None else self._type_mapper.map_path_to_str(self._paths.file_settings)
+        self.qsettings = QSettings(file, QSettings.Format.IniFormat)
 
     @staticmethod
-    def get_default_comment_types() -> list[str]:
-        return [
-            QT_TRANSLATE_NOOP("CommentTypes", "Translation"),
-            QT_TRANSLATE_NOOP("CommentTypes", "Spelling"),
-            QT_TRANSLATE_NOOP("CommentTypes", "Punctuation"),
-            QT_TRANSLATE_NOOP("CommentTypes", "Phrasing"),
-            QT_TRANSLATE_NOOP("CommentTypes", "Timing"),
-            QT_TRANSLATE_NOOP("CommentTypes", "Typeset"),
-            QT_TRANSLATE_NOOP("CommentTypes", "Note"),
-        ]
+    def default_theme_identifier() -> str:
+        return default_theme_identifier()
 
-    @property
-    def backup_enabled(self) -> bool:
-        return self._settings.value("Backup/enabled", True, type=bool)
-
-    @backup_enabled.setter
-    def backup_enabled(self, value: bool):
-        if self.backup_enabled != value:
-            self._settings.setValue("Backup/enabled", value)
-            self.backupEnabledChanged.emit(value)
-
-    @property
-    def backup_interval(self) -> int:
-        return self._settings.value("Backup/interval", 60, type=int)
-
-    @backup_interval.setter
-    def backup_interval(self, value: int):
-        if self.backup_interval != value:
-            self._settings.setValue("Backup/interval", value)
-            self.backupIntervalChanged.emit(value)
-
-    @property
-    def language(self) -> str:
-        return self._settings.value("Common/language", get_default_language(), type=str)
-
-    @language.setter
-    def language(self, value: str):
-        if self.language != value:
-            self._settings.setValue("Common/language", value)
-            self.languageChanged.emit(value)
-
-    @property
-    def comment_types(self) -> list[str]:
-        return self._settings.value("Common/commentTypes", self.get_default_comment_types(), type=list)
-
-    @comment_types.setter
-    def comment_types(self, value: list[str]):
-        if self.comment_types != value:
-            self._settings.setValue("Common/commentTypes", value)
-            self.commentTypesChanged.emit(value)
-
-    @property
-    def nickname(self) -> str:
-        return self._settings.value("Export/nickname", get_default_username(), type=str)
-
-    @nickname.setter
-    def nickname(self, value: str):
-        if self.nickname != value:
-            self._settings.setValue("Export/nickname", value)
-            self.nicknameChanged.emit(value)
-
-    @property
-    def write_header_date(self) -> bool:
-        return self._settings.value("Export/writeHeaderDate", True, type=bool)
-
-    @write_header_date.setter
-    def write_header_date(self, value: bool):
-        if self.write_header_date != value:
-            self._settings.setValue("Export/writeHeaderDate", value)
-            self.writeHeaderDateChanged.emit(value)
-
-    @property
-    def write_header_generator(self) -> bool:
-        return self._settings.value("Export/writeHeaderGenerator", True, type=bool)
-
-    @write_header_generator.setter
-    def write_header_generator(self, value: bool):
-        if self.write_header_generator != value:
-            self._settings.setValue("Export/writeHeaderGenerator", value)
-            self.writeHeaderGeneratorChanged.emit(value)
-
-    @property
-    def write_header_nickname(self) -> bool:
-        return self._settings.value("Export/writeHeaderNickname", False, type=bool)
-
-    @write_header_nickname.setter
-    def write_header_nickname(self, value: bool):
-        if self.write_header_nickname != value:
-            self._settings.setValue("Export/writeHeaderNickname", value)
-            self.writeHeaderNicknameChanged.emit(value)
-
-    @property
-    def write_header_video_path(self) -> bool:
-        return self._settings.value("Export/writeHeaderVideoPath", True, type=bool)
-
-    @write_header_video_path.setter
-    def write_header_video_path(self, value: bool):
-        if self.write_header_video_path != value:
-            self._settings.setValue("Export/writeHeaderVideoPath", value)
-            self.writeHeaderVideoPathChanged.emit(value)
-
-    @property
-    def write_header_subtitles(self) -> bool:
-        return self._settings.value("Export/writeHeaderSubtitles", False, type=bool)
-
-    @write_header_subtitles.setter
-    def write_header_subtitles(self, value: bool) -> None:
-        if self.write_header_subtitles != value:
-            self._settings.setValue("Export/writeHeaderSubtitles", value)
-            self.writeHeaderSubtitlesChanged.emit(value)
-
-    @property
-    def statusbar_percentage(self) -> bool:
-        return self._settings.value("StatusBar/statusbarPercentage", True, type=bool)
-
-    @statusbar_percentage.setter
-    def statusbar_percentage(self, value: bool):
-        if self.statusbar_percentage != value:
-            self._settings.setValue("StatusBar/statusbarPercentage", value)
-            self.statusbarPercentageChanged.emit(value)
-
-    @property
-    def time_format(self) -> int:
-        return self._settings.value("StatusBar/timeFormat", 3, type=int)  # CURRENT_TOTAL_TIME
-
-    @time_format.setter
-    def time_format(self, value: int):
-        if self.time_format != value:
-            self._settings.setValue("StatusBar/timeFormat", value)
-            self.timeFormatChanged.emit(value)
-
-    @property
-    def last_directory_video(self) -> QUrl:
-        return self._settings.value("Import/lastDirectoryVideo", get_default_movie_location(), type=QUrl)
-
-    @last_directory_video.setter
-    def last_directory_video(self, value: QUrl):
-        if self.last_directory_video != value:
-            self._settings.setValue("Import/lastDirectoryVideo", value)
-            self.lastDirectoryVideoChanged.emit(value)
-
-    @property
-    def last_directory_documents(self) -> QUrl:
-        return self._settings.value("Import/lastDirectoryDocuments", get_default_documents_location(), type=QUrl)
-
-    @last_directory_documents.setter
-    def last_directory_documents(self, value: QUrl):
-        if self.last_directory_documents != value:
-            self._settings.setValue("Import/lastDirectoryDocuments", value)
-            self.lastDirectoryDocumentsChanged.emit(value)
-
-    @property
-    def last_directory_subtitles(self) -> QUrl:
-        return self._settings.value("Import/lastDirectorySubtitles", get_default_documents_location(), type=QUrl)
-
-    @last_directory_subtitles.setter
-    def last_directory_subtitles(self, value: QUrl):
-        if self.last_directory_subtitles != value:
-            self._settings.setValue("Import/lastDirectorySubtitles", value)
-            self.lastDirectorySubtitlesChanged.emit(value)
-
-    @property
-    def import_found_video(self) -> int:
-        return self._settings.value("Import/importFoundVideo", 1, type=int)  # ASK_EVERY_TIME
-
-    @import_found_video.setter
-    def import_found_video(self, value: int):
-        if self.import_found_video != value:
-            self._settings.setValue("Import/importFoundVideo", value)
-            self.importFoundVideoChanged.emit(value)
-
-    @property
-    def layout_orientation(self) -> int:
-        return self._settings.value("SplitView/layoutOrientation", 2, type=int)  # Qt.Vertical
-
-    @layout_orientation.setter
-    def layout_orientation(self, value: int):
-        if self.layout_orientation != value:
-            self._settings.setValue("SplitView/layoutOrientation", value)
-            self.layoutOrientationChanged.emit(value)
-
-    @property
-    def theme_identifier(self) -> str:
-        return self._settings.value("Theme/themeIdentifier", "material-you-dark", type=str)
-
-    @theme_identifier.setter
-    def theme_identifier(self, value: str):
-        if self.theme_identifier != value:
-            self._settings.setValue("Theme/themeIdentifier", value)
-            self.themeIdentifierChanged.emit(value)
-
-    @property
-    def theme_color_option(self) -> int:
-        return self._settings.value("Theme/themeColorOption", 4, type=int)
-
-    @theme_color_option.setter
-    def theme_color_option(self, value: int):
-        if self.theme_color_option != value:
-            self._settings.setValue("Theme/themeColorOption", value)
-            self.themeColorOptionChanged.emit(value)
-
-    @property
-    def window_title_format(self) -> int:
-        return self._settings.value("Window/titleFormat", 0, type=int)
-
-    @window_title_format.setter
-    def window_title_format(self, value: int):
-        if self.window_title_format != value:
-            self._settings.setValue("Window/titleFormat", value)
-            self.windowTitleFormatChanged.emit(value)
+    @staticmethod
+    def default_comment_types() -> list[str]:
+        return default_comment_types()

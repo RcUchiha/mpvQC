@@ -1,0 +1,18 @@
+# SPDX-FileCopyrightText: mpvQC developers
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+module io.github.mpvqc.mpvQC.Components
+
+MpvqcAnimatedIcon MpvqcAnimatedIcon.qml
+MpvqcDebugRectangle MpvqcDebugRectangle.qml
+MpvqcDialog MpvqcDialog.qml
+MpvqcHeader MpvqcHeader.qml
+MpvqcIconLabel MpvqcIconLabel.qml
+MpvqcKeyboardFocusableButtonBox MpvqcKeyboardFocusableButtonBox.qml
+MpvqcMenu MpvqcMenu.qml
+MpvqcMessageBox MpvqcMessageBox.qml
+MpvqcPositionedMenu MpvqcPositionedMenu.qml
+MpvqcSpinBoxRow MpvqcSpinBoxRow.qml
+MpvqcSwitchRow MpvqcSwitchRow.qml
+MpvqcTextFieldRow MpvqcTextFieldRow.qml

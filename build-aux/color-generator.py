@@ -6,12 +6,14 @@ import argparse
 import json
 import re
 import sys
+from argparse import Namespace
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Literal
 
+from materialyoucolor.dynamiccolor.dynamic_scheme import DynamicScheme
 from materialyoucolor.dynamiccolor.material_dynamic_colors import MaterialDynamicColors
 from materialyoucolor.hct import Hct
-from materialyoucolor.scheme.dynamic_scheme import DynamicScheme
 from materialyoucolor.scheme.scheme_tonal_spot import SchemeTonalSpot
 
 HEX_PATTERN = re.compile(r"^#[A-Fa-f0-9]{6}$")
@@ -25,17 +27,18 @@ class Color:
 
 @dataclass(frozen=True)
 class MpvqcColorSet:
+    identifier: str
     background: str
-    backgroundAlternate: str
+    background_alternate: str
     foreground: str
-    foregroundAlternate: str
+    foreground_alternate: str
     control: str
-    rowHighlight: str
-    rowHighlightText: str
-    rowBase: str
-    rowBaseText: str
-    rowBaseAlternate: str
-    rowBaseAlternateText: str
+    row_highlight: str
+    row_highlight_text: str
+    row_base: str
+    row_base_text: str
+    row_base_alternate: str
+    row_base_alternate_text: str
 
 
 def main() -> None:
@@ -60,7 +63,7 @@ def main() -> None:
     run(parser.parse_args())
 
 
-def run(args) -> None:
+def run(args: Namespace) -> None:
     colors = args.colors
     validate_colors(colors)
 
@@ -79,72 +82,68 @@ def validate_colors(colors: list[str]) -> None:
 
 
 def generate(colors: list[str], dark: bool, contrast: float) -> None:
+    spec_version: Literal["2021", "2025"] = "2021"
     color_map = {}
 
     for hex_color in colors:
-        hct = Hct.from_int(int("0xff" + hex_color[1:], 16))
-        scheme = SchemeTonalSpot(hct, dark, contrast)
-        color_map[hex_color] = generate_palette_from(scheme)
+        seed = hex_color.lower()
+        hct = Hct.from_int(int("0xff" + seed[1:], 16))
+        scheme = SchemeTonalSpot(hct, dark, contrast, spec_version=spec_version)
+        mdc = MaterialDynamicColors(spec=spec_version)
+        color_map[seed] = generate_palette_from(scheme, mdc)
 
     mpvqc_colors = map_to_mpvqc_colors(color_map, dark)
     update_theme_file(mpvqc_colors, dark)
 
 
-def generate_palette_from(scheme: DynamicScheme) -> dict:
-    colors = {}
+def generate_palette_from(scheme: DynamicScheme, colors: MaterialDynamicColors) -> dict[str, str]:
+    result = {}
 
-    for attribute in sorted(vars(MaterialDynamicColors).keys()):
-        attribute_value = getattr(MaterialDynamicColors, attribute)
+    for color in colors.all_colors:
+        color_name = color.name
+        r, g, b, _ = color.get_hct(scheme).to_rgba()
+        color_code = f"#{r:02x}{g:02x}{b:02x}"
 
-        is_color = hasattr(attribute_value, "get_hct")
-        is_palette_key_color = bool("_paletteKeyColor" in attribute)
+        result[color_name] = color_code
 
-        if is_color and not is_palette_key_color:
-            r, g, b, _ = attribute_value.get_hct(scheme).to_rgba()
-            color = Color(attribute, f"#{r:02x}{g:02x}{b:02x}")
-
-            if color.name in colors:
-                msg = f"Duplicate color name: {color.name}"
-                raise ValueError(msg)
-
-            colors[color.name] = color.value
-
-    return colors
+    return result
 
 
-def map_to_mpvqc_colors(color_map: dict, dark: bool):
+def map_to_mpvqc_colors(color_map: dict, dark: bool) -> list[MpvqcColorSet]:
     colors = []
-    for palette in color_map.values():
+    for hex_seed, palette in color_map.items():
         if dark:
             colors.append(
                 MpvqcColorSet(
+                    identifier=hex_seed,
                     background=palette["surface"],
-                    backgroundAlternate=palette["surfaceContainerHigh"],
+                    background_alternate=palette["surfaceContainerHigh"],
                     foreground=palette["onSurfaceVariant"],
-                    foregroundAlternate=palette["onSurfaceVariant"],
+                    foreground_alternate=palette["onSurfaceVariant"],
                     control=palette["primary"],
-                    rowHighlight=palette["inversePrimary"],
-                    rowHighlightText=palette["onSurface"],
-                    rowBase=palette["surface"],
-                    rowBaseText=palette["onSurfaceVariant"],
-                    rowBaseAlternate=palette["surfaceContainerLow"],
-                    rowBaseAlternateText=palette["onSurfaceVariant"],
+                    row_highlight=palette["inversePrimary"],
+                    row_highlight_text=palette["onSurface"],
+                    row_base=palette["surface"],
+                    row_base_text=palette["onSurfaceVariant"],
+                    row_base_alternate=palette["surfaceContainerLow"],
+                    row_base_alternate_text=palette["onSurfaceVariant"],
                 )
             )
         else:
             colors.append(
                 MpvqcColorSet(
+                    identifier=hex_seed,
                     background=palette["surfaceContainerLow"],
-                    backgroundAlternate=palette["secondaryContainer"],
+                    background_alternate=palette["secondaryContainer"],
                     foreground=palette["onSurfaceVariant"],
-                    foregroundAlternate=palette["onSecondaryContainer"],
+                    foreground_alternate=palette["onSecondaryContainer"],
                     control=palette["secondary"],
-                    rowHighlight=palette["primary"],
-                    rowHighlightText=palette["onPrimary"],
-                    rowBase=palette["surfaceContainerLow"],
-                    rowBaseText=palette["onSurfaceVariant"],
-                    rowBaseAlternate=palette["surfaceContainerHighest"],
-                    rowBaseAlternateText=palette["onSurfaceVariant"],
+                    row_highlight=palette["primary"],
+                    row_highlight_text=palette["onPrimary"],
+                    row_base=palette["surfaceContainerLow"],
+                    row_base_text=palette["onSurfaceVariant"],
+                    row_base_alternate=palette["surfaceContainerHighest"],
+                    row_base_alternate_text=palette["onSurfaceVariant"],
                 )
             )
     return colors
@@ -163,8 +162,7 @@ def update_theme_file(colors: list[MpvqcColorSet], dark: bool) -> None:
         if theme == item["identifier"]:
             file[idx]["palettes"] = [asdict(c) for c in colors]
 
-    with Path(path).open("w", encoding="utf-8") as f:
-        f.write(json.dumps(file, indent=4))
+    Path(path).write_text(json.dumps(file, indent=4), encoding="utf-8")
 
 
 if __name__ == "__main__":

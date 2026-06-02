@@ -4,7 +4,7 @@
 
 from __future__ import annotations
 
-import typing
+from typing import TYPE_CHECKING, override
 
 import inject
 from PySide6.QtCore import QAbstractListModel, QByteArray, Qt
@@ -12,45 +12,45 @@ from PySide6.QtQml import QmlElement
 
 from mpvqc.services import ThemeService
 
-if typing.TYPE_CHECKING:
+if TYPE_CHECKING:
     from typing import Any
 
     from PySide6.QtCore import QModelIndex, QPersistentModelIndex
 
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
 @QmlElement
 class MpvqcThemePreviewModel(QAbstractListModel):
-    _themes: ThemeService = inject.attr(ThemeService)
+    _themes = inject.attr(ThemeService)
 
     IdentifierRole = Qt.ItemDataRole.UserRole + 1
-    NameRole = Qt.ItemDataRole.UserRole + 2
-    PreviewRole = Qt.ItemDataRole.UserRole + 3
-    IsDarkRole = Qt.ItemDataRole.UserRole + 4
+    PreviewRole = Qt.ItemDataRole.UserRole + 2
 
-    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:  # noqa: ARG002
+    @override
+    def rowCount(self, parent: QModelIndex | QPersistentModelIndex | None = None) -> int:
         return len(self._themes.previews)
 
+    @override
     def data(self, index: QModelIndex | QPersistentModelIndex, role: int = Qt.ItemDataRole.DisplayRole) -> Any:
+        if not index.isValid() or index.row() >= self.rowCount():
+            return None
+
         preview = self._themes.previews[index.row()]
 
         match role:
             case self.IdentifierRole:
-                return preview["identifier"]
-            case self.NameRole | Qt.ItemDataRole.DisplayRole:
-                return preview["name"]
+                return preview.identifier
             case self.PreviewRole:
-                return preview["preview"]
-            case self.IsDarkRole:
-                return preview["isDark"]
+                return preview.preview
 
+        return None
+
+    @override
     def roleNames(self) -> dict[int, QByteArray]:
         return {
             self.IdentifierRole: QByteArray(b"identifier"),
-            self.NameRole: QByteArray(b"name"),
             self.PreviewRole: QByteArray(b"preview"),
-            self.IsDarkRole: QByteArray(b"isDark"),
         }

@@ -8,15 +8,14 @@ from PySide6.QtQml import QmlElement
 
 from mpvqc.services import ResetService
 
-QML_IMPORT_NAME = "pyobjects"
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
 QML_IMPORT_MAJOR_VERSION = 1
 
 
-# noinspection PyTypeChecker
 @QmlElement
 class MpvqcResetMessageBoxViewModel(QObject):
-    _resetter: ResetService = inject.attr(ResetService)
+    _resetter = inject.attr(ResetService)
 
     @Slot()
-    def reset(self):
+    def reset(self) -> None:
         self._resetter.reset()

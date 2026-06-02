@@ -2,11 +2,13 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
+from functools import cached_property
+
 from mpvqc.build import Dependency, get_build_info
 
 
 class BuildInfoService:
-    def __init__(self):
+    def __init__(self) -> None:
         self._build_info = get_build_info()
 
     @property
@@ -30,10 +32,6 @@ class BuildInfoService:
         return self._build_info.application.commit
 
     @property
-    def build_date(self) -> str:
-        return self._build_info.application.build_date
-
-    @property
     def is_release(self) -> bool:
         return self._build_info.application.is_release
 
@@ -45,7 +43,7 @@ class BuildInfoService:
     def dev_dependencies(self) -> tuple[Dependency, ...]:
         return self._build_info.dev_dependencies
 
-    @property
+    @cached_property
     def combined_version_info(self) -> str:
         if self.is_release:
             return f"{self.version} - {self.commit}"

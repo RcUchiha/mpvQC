@@ -2,27 +2,28 @@
 #
 # SPDX-License-Identifier: GPL-3.0-or-later
 
-# ruff: noqa: F401
-from .application import MpvqcApplicationViewModel
-from .backup_timer import MpvqcBackupTimerViewModel
-from .content import MpvqcContentViewModel
-from .dialog_loader import MpvqcDialogLoaderViewModel
-from .dialogs import (
-    MpvqcAboutDialogViewModel,
-    MpvqcAppearanceDialogViewModel,
-    MpvqcBackupDialogViewModel,
-    MpvqcCommentTypesDialogViewModel,
-    MpvqcEditInputDialogViewModel,
-    MpvqcEditMpvDialogViewModel,
-    MpvqcExportSettingsDialogViewModel,
-    MpvqcImportSettingsDialogViewModel,
-)
-from .drop_area import MpvqcDropAreaViewModel
-from .file_dialogs import MpvqcExportFileDialogViewModel, MpvqcImportFileDialogViewModel
-from .footer import MpvqcFooterViewModel
-from .header import MpvqcHeaderViewModel, MpvqcMenuBarViewModel, MpvqcToolBarViewModel
-from .message_box_loader import MpvqcMessageBoxLoaderViewModel
-from .message_boxes import MpvqcResetMessageBoxViewModel, MpvqcVersionCheckMessageBoxViewModel
-from .new_comment_menu import MpvqcNewCommentMenuViewModel
-from .player import MpvqcPlayerViewModel
-from .table import MpvqcCommentTableViewModel, MpvqcPlaceholderViewModel, MpvqcSearchBoxViewModel
+from .app import MpvqcAppViewModel as MpvqcAppViewModel
+from .app import MpvqcDropAreaViewModel as MpvqcDropAreaViewModel
+from .app import MpvqcResizeViewModel as MpvqcResizeViewModel
+from .file_dialogs import MpvqcExportFileDialogViewModel as MpvqcExportFileDialogViewModel
+from .file_dialogs import MpvqcImportFileDialogViewModel as MpvqcImportFileDialogViewModel
+from .message_boxes import MpvqcMessageBoxLoaderViewModel as MpvqcMessageBoxLoaderViewModel
+from .message_boxes import MpvqcQuitMessageBoxViewModel as MpvqcQuitMessageBoxViewModel
+from .message_boxes import MpvqcResetMessageBoxViewModel as MpvqcResetMessageBoxViewModel
+from .message_boxes import MpvqcVersionCheckMessageBoxViewModel as MpvqcVersionCheckMessageBoxViewModel
+from .utility import MpvqcLabelWidthCalculatorViewModel as MpvqcLabelWidthCalculatorViewModel
+from .utility import MpvqcThemeViewModel as MpvqcThemeViewModel
+from .utility import MpvqcWindowPropertiesViewModel as MpvqcWindowPropertiesViewModel
+from .views import MpvqcBackupTimerViewModel as MpvqcBackupTimerViewModel
+from .views import MpvqcCommentTableViewModel as MpvqcCommentTableViewModel
+from .views import MpvqcFooterViewModel as MpvqcFooterViewModel
+from .views import MpvqcHeaderViewModel as MpvqcHeaderViewModel
+from .views import MpvqcMenuBarViewModel as MpvqcMenuBarViewModel
+from .views import MpvqcNewCommentMenuViewModel as MpvqcNewCommentMenuViewModel
+from .views import MpvqcPlaceholderViewModel as MpvqcPlaceholderViewModel
+from .views import MpvqcPlayerViewModel as MpvqcPlayerViewModel
+from .views import MpvqcSearchBoxViewModel as MpvqcSearchBoxViewModel
+from .views import MpvqcTableUtilityViewModel as MpvqcTableUtilityViewModel
+from .views import MpvqcToolBarViewModel as MpvqcToolBarViewModel
+from .views import MpvqcWindowButtonsViewModel as MpvqcWindowButtonsViewModel
+from .window_visibility import MpvqcWindowVisibilityViewModel as MpvqcWindowVisibilityViewModel

@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: mpvQC developers
+#
+# SPDX-License-Identifier: GPL-3.0-or-later
+
+import inject
+from PySide6.QtCore import Property, QObject, QPoint, Signal, Slot
+from PySide6.QtGui import QCursor
+from PySide6.QtQml import QmlElement
+
+from mpvqc.services import PlayerService, SettingsService
+
+QML_IMPORT_NAME = "io.github.mpvqc.mpvQC.Python"
+QML_IMPORT_MAJOR_VERSION = 1
+
+
+@QmlElement
+class MpvqcNewCommentMenuViewModel(QObject):
+    _player = inject.attr(PlayerService)
+    _settings = inject.attr(SettingsService)
+
+    commentTypesChanged = Signal(list)
+
+    def __init__(self, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self._settings.comment_types_changed.connect(self.commentTypesChanged)
+
+    @Property(list, notify=commentTypesChanged)
+    def commentTypes(self) -> list[str]:
+        return self._settings.comment_types
+
+    @Slot(result=QPoint)
+    def cursorPosition(self) -> QPoint:
+        return QCursor.pos()
+
+    @Slot()
+    def pausePlayer(self) -> None:
+        self._player.pause()
